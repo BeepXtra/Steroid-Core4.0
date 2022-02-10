@@ -1,0 +1,8 @@
+#Here is the rewrite you need to run REST requests on nginx
+#Replaces HTACCESS rules in nginx rewrites
+#-------------------
+rewrite ^/doc/(.*)  /doc/$1 last;
+rewrite ^/mine/(.*)  /mine/mine.php$1 last;
+
+rewrite ^(.*) /index.php?$1;
+#-------------------
