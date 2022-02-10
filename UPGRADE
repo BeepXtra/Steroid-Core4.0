@@ -1,6 +1,0 @@
-In order to upgrade your Steroid4 Node, follow the next steps:
-1. Download the source code from https://github.com/steroid4/steroid-core
-2. Edit the include/config.inc.php with the DB details
-3. Replace your old node folder with the new one.
-4. chmod 777 tmp -R
-5. Load the node's address in your browser.
