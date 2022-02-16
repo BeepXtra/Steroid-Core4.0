@@ -37,8 +37,10 @@ class SBlock {
     public function add($height, $public_key, $nonce, $data, $date, $signature, $difficulty, $reward_signature, $argon, $bootstrapping=false)
     {
         global $db;
-        $acc = new Account();
-        $trx = new Transaction();
+        require_once 'SWallet.php';
+        $acc = new SWallet();
+        require_once 'STx.php';
+        $trx = new STx();
 
         $generator = $acc->get_address($public_key);
 
@@ -108,7 +110,7 @@ class SBlock {
             }
             $mn_winner=$db->single(
                 "SELECT public_key FROM masternode WHERE status=1 AND blacklist<:current AND height<:start $check_mn_votes ORDER by last_won ASC, public_key ASC LIMIT 1",
-                [":current"=>$height, ":start"=>$height-360]
+                [":current"=>$height, ":start"=>$height]
             );
             _log("MN Winner: $mn_winner", 2);
             if ($mn_winner!==false) {
@@ -315,7 +317,7 @@ class SBlock {
     {
         global $db;
 
-        $bpcdev='PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCvcUb8x4p38GFbZWaJKcncEWqUbe7YJtrDXomwn7DtDYuyYnN2j6s4nQxP1u9BiwCA8U4TjtC9Z21j3R3STLJSFyL';
+        $bpcdev='PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCxSfuVGzyQJhvgizJayys9rmiS3pu85PaYy3bGyHKSAvo75SmZJ78bgwY3gajeMXUfNbrM2Gv5WnTfrgFu9UPVckX';
 
         // masternode votes
         if ($height%43200==0) {
@@ -405,7 +407,8 @@ class SBlock {
     public function asset_market_orders($height, $hash, $public_key, $date, $signature)
     {
         global $db;
-        $trx=new Transaction;
+        require_once 'STx.php';
+        $trx=new STx();
         // checks all bid market orders ordered in the same way on all nodes
         $r=$db->run("SELECT * FROM assets_market WHERE status=0 and val_done<val AND type='bid' ORDER by asset ASC, id ASC");
         foreach ($r as $x) {
@@ -464,7 +467,8 @@ class SBlock {
     public function asset_distribute_dividends($height, $hash, $public_key, $date, $signature)
     {
         global $db;
-        $trx=new Transaction;
+        require_once 'STx.php';
+        $trx=new STx();
         _log("Starting automated dividend distribution", 3);
         // just the assets with autodividend
         $r=$db->run("SELECT * FROM assets WHERE auto_dividend=1");
@@ -616,9 +620,9 @@ class SBlock {
             // if larger than 200 sec, increase by 5%
             if ($result > 220) {
                 $dif = bcmul($current['difficulty'], 1.05);
-            } elseif ($result < 260) {
+            } elseif ($result < 240) {
                 // if lower, decrease by 5%
-                $dif = bcmul($current['difficulty'], 0.95);
+                $dif = bcmul($current['difficulty'], 0.99995);
             } else {
                 // keep current difficulty
                 $dif = $current['difficulty'];
@@ -744,7 +748,7 @@ class SBlock {
             $reward -= $reward * $factor;
         } else {
             // starting reward
-            $reward = 1000;
+            $reward = 1;
             // decrease by 1% each 10800 blocks (approx 1 month)
             $factor = floor($id / 10800) / 100;
             $reward -= $reward * $factor;
@@ -771,7 +775,8 @@ class SBlock {
             _log("Invalid block argon - $data[argon]");
             return false;
         }
-        $acc = new Account();
+        require_once 'SWallet.php';
+        $acc = new SWallet();
 
         if ($data['date']>time()+30) {
             _log("Future block - $data[date] $data[public_key]", 2);
@@ -802,6 +807,7 @@ class SBlock {
     // creates a new block on this node
     public function forge($nonce, $argon, $public_key, $private_key)
     {
+        _log("Forge attempt - nonce:".$nonce." argon:".$argon." miner:".$public_key);
         //check the argon hash and the nonce to produce a valid block
         if (!$this->mine($public_key, $nonce, $argon)) {
             _log("Forge failed - Invalid argon");
@@ -818,14 +824,16 @@ class SBlock {
         }
 
         // get the mempool transactions
-        $txn = new Transaction();
+        require_once 'STx.php';
+        $txn = new STx();
         $data = $txn->mempool($this->max_transactions());
 
 
         $difficulty = $this->difficulty();
-        $acc = new Account();
+        require_once 'SWallet.php';
+        $acc = new SWallet();
         $generator = $acc->get_address($public_key);
-
+        
         // always sort  the transactions in the same way
         ksort($data);
 
@@ -964,12 +972,12 @@ class SBlock {
     public function mine($public_key, $nonce, $argon, $difficulty = 0, $current_id = 0, $current_height = 0, $time=0)
     {
         global $_config;
-   
-        // invalid future blocks
+
+        // invalid future blocks and exploit attempts
         if ($time>time()+30) {
             return false;
         }
-
+        
 
         // if no id is specified, we use the current
         if ($current_id === 0 || $current_height === 0) {
@@ -981,9 +989,15 @@ class SBlock {
         if ($time == 0) {
             $time=time();
         }
+        
         // get the current difficulty if empty
         if ($difficulty === 0) {
             $difficulty = $this->difficulty();
+            
+        }
+        //Adjust for first blocks to kickstart after genesis
+        if($current_height < 10000){
+            $difficulty = $difficulty*1000000;
         }
         
         if (empty($public_key)) {
@@ -991,17 +1005,7 @@ class SBlock {
             return false;
         }
         
-        if ($current_height<80000) {
-            
-            // the argon parameters are hardcoded to avoid any exploits
-            if ($current_height > 10800) {
-                _log("Block below 80000 but after 10800, using 512MB argon", 2);
-                $argon = '$argon2i$v=19$m=524288,t=1,p=1'.$argon; //10800 block hard fork - resistance against gpu
-            } else {
-                _log("Block below 10800, using 16MB argon", 2);
-                $argon = '$argon2i$v=19$m=16384,t=4,p=4'.$argon;
-            }
-        } elseif ($current_height>=80458) {
+        if ($current_height<8000000) {
             if ($current_height%2==0) {
                 // cpu mining
                 _log("CPU Mining - $current_height", 2);
@@ -1011,8 +1015,19 @@ class SBlock {
                 _log("GPU Mining - $current_height", 2);
                 $argon = '$argon2i$v=19$m=16384,t=4,p=4'.$argon;
             }
-        } else {
-            _log("Block > 80000 - $current_height", 2);
+        } /*elseif ($current_height>=80458) {
+            if ($current_height%2==0) {
+                // cpu mining
+                _log("CPU Mining - $current_height", 2);
+                $argon = '$argon2i$v=19$m=524288,t=1,p=1'.$argon;
+            } else {
+                // gpu mining
+                _log("GPU Mining - $current_height", 2);
+                $argon = '$argon2i$v=19$m=16384,t=4,p=4'.$argon;
+            }
+        }*/ else {
+            _log("Block - $current_height", 2);
+            
             if ($current_height%3==0) {
                 // cpu mining
                 _log("CPU Mining - $current_height", 2);
@@ -1021,6 +1036,7 @@ class SBlock {
                 // gpu mining
                 _log("GPU Mining - $current_height", 2);
                 $argon = '$argon2i$v=19$m=16384,t=4,p=4'.$argon;
+                
             } else {
                 _log("Masternode Mining - $current_height", 2);
                 // masternode
@@ -1036,7 +1052,8 @@ class SBlock {
                 $winner=$db->single(
                     "SELECT public_key FROM masternode WHERE status=1 AND blacklist<:current AND height<:start ORDER by last_won ASC, public_key ASC LIMIT 1",
                     [":current"=>$current_height, ":start"=>$current_height-360]
-                );
+                ); 
+                
                
                 // if there are no active masternodes, give the block to gpu
                 if ($winner===false) {
@@ -1047,8 +1064,14 @@ class SBlock {
                     // 4 mins need to pass since last block
                     $last_time=$db->single("SELECT `date` FROM blocks WHERE height=:height", [":height"=>$current_height]);
                     if ($time-$last_time<240&&$_config['testnet']==false) {
+                        $mempool=$db->single("SELECT count(*) FROM mempool", []);
+                        if($mempool){
+                            //we have work to do... curry on
+                            
+                        } else {
                         _log("4 minutes have not passed since the last block - $time", 1);
                         return false;
+                        }
                     }
                     
                     if ($public_key==$winner) {
@@ -1087,16 +1110,18 @@ class SBlock {
             }
         }
 
-        // the hash base for agon
-        $base = "$public_key-$nonce-".$current_id."-$difficulty";
-
-
+        // the hash base for argon
+        $base = $public_key.'-'.$nonce.'-'.$current_id.'-'.$difficulty;
+        
         // check argon's hash validity
         if (!password_verify($base, $argon)) {
+            //echo '<br/><br/><br/>'.$base.'<br/><br/><br/>';
+            //echo $argon;
+            
             _log("Argon verify failed - $base - $argon", 2);
             return false;
         }
-
+//echo 'verify';die;
         // all nonces are valid in testnet
         if ($_config['testnet'] == true) {
             return true;
@@ -1122,7 +1147,7 @@ class SBlock {
         $duration = ltrim($duration, '0');
 
         // divide the number by the difficulty and create the deadline
-        $result = gmp_div($duration, $difficulty);
+        $result = gmp_div($duration, ($difficulty));
 
         // if the deadline >0 and <=240, the arguments are valid fora  block win
         if ($result > 0 && $result <= 240) {
@@ -1141,8 +1166,10 @@ class SBlock {
             _log("Block data is false", 3);
             return false;
         }
-        $acc = new Account();
-        $trx = new Transaction();
+        require_once 'SWallet.php';
+        $acc = new SWallet();
+        require_once 'STx.php';
+        $trx = new STx();
         // no transactions means all are valid
         if (count($data) == 0) {
             return true;
@@ -1248,7 +1275,7 @@ class SBlock {
             $argon
         );
         if (!$res) {
-            api_err("Could not add the genesis block.");
+            print_r(json_encode(api_err("Could not add the genesis block.")));exit;
         }
     }
 
@@ -1267,7 +1294,8 @@ class SBlock {
             $height = 2;
         }
         global $db;
-        $trx = new Transaction();
+        require_once 'STx.php';
+        $trx = new STx();
 
         $r = $db->run("SELECT * FROM blocks WHERE height>=:height ORDER by height DESC", [":height" => $height]);
 
@@ -1326,7 +1354,8 @@ class SBlock {
     public function delete_id($id)
     {
         global $db;
-        $trx = new Transaction();
+        require_once 'STx.php';
+        $trx = new STx();
 
         $x = $db->row("SELECT * FROM blocks WHERE id=:id", [":id" => $id]);
 
@@ -1387,7 +1416,8 @@ class SBlock {
         }
 
         global $db;
-        $trx = new Transaction();
+        require_once 'STx.php';
+        $trx = new STx();
         if (!empty($height)) {
             $block = $db->row("SELECT * FROM blocks WHERE height=:height", [":height" => $height]);
         } else {
