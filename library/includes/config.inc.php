@@ -25,7 +25,7 @@ $_config['db_pass'] = 'upGlHjJdB3xXarRU';
 $_config['max_peers'] = 30;
 
 // Enable testnet mode for development
-$_config['testnet'] = true;
+$_config['testnet'] = false;
 
 // To avoid any problems if other clones are made
 $_config['coin'] = 'bpc';
@@ -39,7 +39,8 @@ $_config['allowed_hosts'] = [
     '139.162.179.250',
     '139.162.212.101',
     '172.104.134.29',
-    '62.228.227.198'
+    '62.228.227.198',
+    '*'
 ];
 
 // Disable transactions and block repropagation
@@ -64,7 +65,7 @@ $_config['initial_peer_list'] = [
 ];
 
 // does not peer with any of the peers. Uses the seed peers and syncs only from those peers. Requires a cronjob on sanity.php
-$_config['passive_peering'] = true;
+$_config['passive_peering'] = false;
 
 
 /*
@@ -99,12 +100,12 @@ $_config['sanity_interval'] = 900;
 
 // Enable setting a new hostname (should be used only if you want to change the hostname)
 $_config['allow_hostname_change'] = false;
-
+$_config['hostname'] = false;
 // Rebroadcast local transactions when running sanity
 $_config['sanity_rebroadcast_locals'] = true;
 
 // Get more peers?
-$_config['get_more_peers'] = true;
+$_config['get_more_peers'] = false;
 
 /*
 |--------------------------------------------------------------------------
@@ -119,7 +120,7 @@ $_config['enable_logging'] = true;
 $_config['log_file'] = '/var/log/bpc.log';
 
 // Log verbosity (default 0, maximum 3)
-$_config['log_verbosity'] = 1;
+$_config['log_verbosity'] = 3;
 
 /*
 |--------------------------------------------------------------------------
@@ -131,7 +132,7 @@ $_config['log_verbosity'] = 1;
 $_config['masternode'] = true;
 $_config['maintenance'] = false;
 // The public key for the masternode
-$_config['masternode_public_key'] = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCyxMpqsADqXaXVUgzpq3iSM6TCq3uju8cN7wWmLuj9Ly9u6tes84jX4mBfgr8FqPC5gG1L3nnTGXL9q6tRMryb8Wh';
+$_config['masternode_public_key'] = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCxSfuVGzyQJhvgizJayys9rmiS3pu85PaYy3bGyHKSAvo75SmZJ78bgwY3gajeMXUfNbrM2Gv5WnTfrgFu9UPVckX';
 //private for test
 /*
  * H4KoERfwCfmWVsUN4uQSRzWvXqGFFN5AUFmaWVNXmghWgKkLYok4YHn2yzEL8jrwGySL3UFPY22WQJMHe39KyL9ZMoUkoQMm5EiQwiUUuQtxVCorMJaybunxM5aUqR38d8uxipKHnYYDwychsEKKogB9f6njxjt9BhVcnZZCMRzRozMnS58KXb3EwwwEn6DbQVrwcsm1GR1qgsG7uJ4EnboNsZVkoD8PnKwCAoW7ucxcwgbL4H4ZeuGQSfikMd6XBJgv1nuzsGpdW4j4S3ZfLnpU4Q1XefxsJPXZ6PVCg7H9xcpNEpW9SZdbhs5UiNzJaQww3gFGRxLMkZg5aPbX3ntshQms6epYe9HY55QZpCzbh4oEX2

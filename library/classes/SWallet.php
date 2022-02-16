@@ -105,7 +105,7 @@ class SWallet {
     public function free_alias($id)
     {
         global $db;
-        $orig=$id;
+        $orig=strtoupper($id);
         $id=strtoupper($id);
         $id = san($id);
         if (strlen($id)<4||strlen($id)>25) {
@@ -138,12 +138,12 @@ class SWallet {
     //check alias validity
     public function valid_alias($id)
     {
-          echo 'passed';
         global $db;
-        $orig=$id;
+        $orig=strtoupper($id);
         $banned=["MERCURY","DEVS","DEVELOPMENT", "MARKETING", "MERCURY80","DEVBPC", "DEVELOPER","DEVELOPERS","BPCDEV", "DONATION","MERCATOX", "OCTAEX", "MERCURY", "STEROID", "STEROID4", "BEEP", "BPC", "BEEPXCOIN", "BEEPIQ", "ESCROW","OKEX","BINANCE","CRYPTOPIA","HUOBI","BITFINEX","HITBTC","UPBIT","COINBASE","KRAKEN","BITSTAMP","BITTREX","POLONIEX"];
         $id=strtoupper($id);
         $id = san($id);
+        
         if (in_array($id, $banned)) {
             
             return false;
@@ -153,10 +153,11 @@ class SWallet {
             return false;
         }
         if ($orig!=$id) {
+            
             return false;
         }
                   
-
+        
         return $db->single("SELECT COUNT(1) FROM accounts WHERE alias=:alias", [":alias"=>$id]);
     }
 
@@ -199,7 +200,19 @@ class SWallet {
     {
         
         global $db;
-        $res = $db->single("SELECT balance FROM accounts WHERE id=:id", [":id" => $id]);
+        
+        if($this->valid_alias($id)){
+            //Check using alias
+            $id = strtoupper($id);
+            $res = $db->single("SELECT balance FROM accounts WHERE alias=:id", [":id" => $id]);
+        } elseif(strlen($id) >= 89 && $this->valid_key($id)) {
+            //Check using public_key
+            $res = $db->single("SELECT balance FROM accounts WHERE public_key=:id", [":id" => $id]);
+        } elseif($this->valid($id)) {
+            //Check using address
+            $res = $db->single("SELECT balance FROM accounts WHERE id=:id", [":id" => $id]);
+        }
+        
         if ($res === false) {
             $res = "0.00000000";
         }
@@ -243,14 +256,17 @@ class SWallet {
         }
         $mem = $db->single("SELECT SUM(val+fee) FROM mempool WHERE src=:id", [":id" => $id]);
         $rez = $res - $mem;
-        return number_format($rez, 8, ".", "");
+         if ($mem === false) {
+            $mem = "0.00000000";
+        }
+        return number_format($mem, 8, ".", "");
     }
 
     // returns all the transactions of a specific address
     public function get_transactions($id, $limit = 100)
     {
         global $db;
-        $block = new Block();
+        $block = new SBlock();
         $current = $block->current();
         $public_key = $this->public_key($id);
         $alias = $this->account2alias($id);

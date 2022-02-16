@@ -7,14 +7,14 @@ namespace Steroid4\Node;
  */
 final class InitialPeers
 {
-    public const MINIMUM_PEERS_REQUIRED = 2;
+    public const MINIMUM_PEERS_REQUIRED = 1;
     public const PRELOAD_ERROR = 'Unable to retrieve peers from the preload list.';
-    public const PRELOAD_LIST = 'https://www.steroid.io/peers.txt';
+    public const PRELOAD_LIST = 'https://peer1.steroid.io';
 
     /**
      * @var array
      */
-    private $peerList = [];
+    private $peerList = ['https://peer1.steroid.io'];
 
     /**
      * InitialPeers constructor.

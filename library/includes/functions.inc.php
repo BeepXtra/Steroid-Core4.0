@@ -28,8 +28,8 @@ function api_err($data)
     if (!headers_sent()) {
         header('Content-Type: application/json');
     }
+    //echo json_encode(["status" => "error", "data" => $data, "coin" => $_config['coin']]);
     return array("status" => "error", "data" => $data, "coin" => $_config['coin']);
-    exit;
 }
 
 // api print ok and exit
@@ -41,13 +41,12 @@ function api_echo($data)
         header('Content-Type: application/json');
     }
     return array("status" => "ok", "data" => $data, "coin" => $_config['coin']);
-    exit;
 }
 
 // log function, shows only in cli atm
 function _log($data, $verbosity = 0)
 {
-    print_r($data);
+    //print_r($data);
     global $_config;
     if ($_config['log_verbosity'] < $verbosity) {
         return;
