@@ -366,13 +366,8 @@ class SApi {
     }
     
     public function test($public_key){
-        $add = '2P67zUANj7NRKTruQ8nJRHNdKMroY6gLw4NjptTVmYk6Hh1QPYzzfEa9z4gv8qJhuhCNM8p9GDAEDqGUU1awaLW62iuDtB7dUkaezC137o2a1D7trrR2JMk7EaRbckHu9KvLNHyb7wcp6MVuYj32X79tZumtZohfKQWwvoyPqCZuVmfJ';
-$pub = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCyjGMdVDanywM3CbqvswVqysqU8XS87FcjpqNijtpRSSQ36WexRDv3rJL5X8qpGvzvznuErSRMfb2G6aNoiaT3aEJ';
-$addlen2 = strlen($add);
-$addlen = $addlen2 / 2;
-$publen = strlen($pub);
-
-        return array('addresslength' => $addlen,'duallength' => $addlen2, 'publiclength' => $publen);
+        
+        return array('test' => $this->swallet->check_transaction());
     }
 }
 ?>
