@@ -1,6 +1,6 @@
 # node
 
-The Steroid4.0 (BPC) cryptocurrency node.
+The Steroid4.0 (BPC) masternode.
 
 ## Install
 

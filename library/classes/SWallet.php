@@ -200,7 +200,7 @@ class SWallet {
     {
         
         global $db;
-        
+        $res = false;
         if($this->valid_alias($id)){
             //Check using alias
             $id = strtoupper($id);
