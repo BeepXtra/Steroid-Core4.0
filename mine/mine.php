@@ -39,7 +39,7 @@ require_once '../library/classes/SBlock.php';
 $block = new SBlock();
 require_once '../library/classes/SWallet.php';
 $acc = new SWallet();
-set_time_limit(360);
+set_time_limit(10);
 $q = $_GET['q'];
 
 $ip = san_ip($_SERVER['REMOTE_ADDR']);
