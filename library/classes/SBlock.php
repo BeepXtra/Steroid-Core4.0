@@ -50,8 +50,8 @@ class SBlock {
         // create the hash / block id
         $hash = $this->hash($generator, $height, $date, $nonce, $data, $signature, $difficulty, $argon);
         //fix for the broken base58 library used until block 16900, trimming the first 0 bytes.
-        if ($height < 16900) {
-            $hash = ltrim($hash, '1');
+        if ($height < 1) {
+            //$hash = ltrim($hash, '1');
         }
 
         $json = json_encode($data);
@@ -80,7 +80,7 @@ class SBlock {
         $mn_reward_rate=0.33;
   
         // hf
-        if ($height>216000) {
+        if ($height>80000) {
             $votes=[];
             $r=$db->run("SELECT id,val FROM votes");
             foreach ($r as $vote) {
@@ -101,7 +101,7 @@ class SBlock {
         }
 
 
-        if ($height>=80458) {
+        if ($height>=80000) {
             //reward the masternode
             // do not reward blacklisted mns after 320000
             $check_mn_votes="";
@@ -112,6 +112,7 @@ class SBlock {
                 "SELECT public_key FROM masternode WHERE status=1 AND blacklist<:current AND height<:start $check_mn_votes ORDER by last_won ASC, public_key ASC LIMIT 1",
                 [":current"=>$height, ":start"=>$height]
             );
+            //error_log($height.' / '.$mn_winner.' - SELECT public_key FROM masternode WHERE status=1 AND blacklist<'.$height.' AND height<'.$height.' '.$check_mn_votes.' ORDER by last_won ASC, public_key ASC LIMIT 1', 0);
             _log("MN Winner: $mn_winner", 2);
             if ($mn_winner!==false) {
                 $mn_reward=round($mn_reward_rate*$reward, 8);
@@ -124,7 +125,7 @@ class SBlock {
         $cold_winner=false;
         $cold_reward=0;
         $cold_last_won=0;
-        if ($height>216000) {
+        if ($height>80000) {
             if ($votes['coldstacking']==1) {
                 $cold_reward=round($mn_reward*0.2, 8);
                 $mn_reward=$mn_reward-$cold_reward;
@@ -202,10 +203,10 @@ class SBlock {
             return false;
         }
         //masternode rewards
-        if ($mn_winner!==false&&$height>=80458&&$mn_reward>0) {
+        if ($mn_winner!==false&&$height>=7355&&$mn_reward>0) {
             //cold stacking rewards
             
-            if ($cold_winner!==false&&$height>216000&&$cold_reward>0) {
+            if ($cold_winner!==false&&$height>7355&&$cold_reward>0) {
                 $db->run("UPDATE accounts SET balance=balance+:bal WHERE public_key=:pub", [":pub"=>$cold_winner, ":bal"=>$cold_reward]);
             
                 $bind = [
@@ -281,22 +282,22 @@ class SBlock {
         // parse the block's transactions and insert them to db
         $res = $this->parse_block($hash, $height, $data, false, $bootstrapping);
 
-        if (($height-1)%3==2 && $height>=80000&&$height<80458) {
+        if (($height-1)%3==2 && $height>=7355&&$height<80458) {
             $this->blacklist_masternodes();
             $this->reset_fails_masternodes($public_key, $height, $hash);
         }
 
         // automated asset distribution, checked only every 1000 blocks to reduce load. Payouts every 10000 blocks.
 
-        if ($height>216000  && $height%50==1 && $res==true) { //  every 50 for testing. No initial height set yet.
+        if ($height>7355  && $height%50==1 && $res==true) { //  every 50 for testing. No initial height set yet.
             $res=$this->asset_distribute_dividends($height, $hash, $public_key, $date, $signature);
         }
 
-        if ($height>216000 && $res==true) {
+        if ($height>7355 && $res==true) {
             $res=$this->asset_market_orders($height, $hash, $public_key, $date, $signature);
         }
 
-        if ($height>216000 && $height%43200==0) {
+        if ($height>7355 && $height%43200==0) {
             $res=$this->masternode_votes($public_key, $height, $hash);
         }
         
@@ -591,9 +592,9 @@ class SBlock {
 
         $height = $current['height'];
 
-        if ($height == 10801||($height>=80456&&$height<80460)) {
+        /*if ($height == 10801||($height>=80456&&$height<80460)) {
             return "5555555555"; //hard fork 10900 resistance, force new difficulty
-        }
+        }*/
 
         // last 20 blocks used to check the block times
         $limit = 20;
@@ -607,7 +608,7 @@ class SBlock {
         }
 
         // before mnn hf
-        if ($height<80000) {
+        if ($height<6820) {
             // elapsed time between the last 20 blocks
             $first = $db->row("SELECT `date` FROM blocks  ORDER by height DESC LIMIT :limit,1", [":limit"=>$limit]);
             $time = $current['date'] - $first['date'];
@@ -627,13 +628,13 @@ class SBlock {
                 // keep current difficulty
                 $dif = $current['difficulty'];
             }
-        } elseif ($height>=80458) {
+        } elseif ($height>=6820) {
             $type=$height%2;
             $current=$db->row("SELECT difficulty from blocks WHERE height<=:h ORDER by height DESC LIMIT 1,1", [":h"=>$height]);
             $blks=0;
             $total_time=0;
-            $blk = $db->run("SELECT `date`, height FROM blocks WHERE height<=:h  ORDER by height DESC LIMIT 20", [":h"=>$height]);
-            for ($i=0;$i<19;$i++) {
+            $blk = $db->run("SELECT `date`, height FROM blocks WHERE height<=:h  ORDER by height DESC LIMIT 100", [":h"=>$height]);
+            for ($i=0;$i<99;$i++) {
                 $ctype=$blk[$i+1]['height']%2;
                 $time=$blk[$i]['date']-$blk[$i+1]['date'];
                 if ($type!=$ctype) {
@@ -643,9 +644,10 @@ class SBlock {
                 $total_time+=$time;
             }
             $result=ceil($total_time/$blks);
+            //echo $result;
             _log("Block time: $result", 3);
             // 1 minute blocktime
-            if ($height>216000) {
+            if ($height>6850) {
                 if ($result > 65) {
                     $dif = bcmul($current['difficulty'], 1.05);
                 } elseif ($result < 55) {
@@ -705,7 +707,9 @@ class SBlock {
             }
         }
 
-
+        if(!$height%2){
+            $dif = $current['diffuculty'];
+        }
 
 
 
@@ -743,7 +747,7 @@ class SBlock {
     {
         if ($id>216000) {
             // 1min block time
-            $reward=200;
+            $reward=1;
             $factor = floor(($id-216000) / 43200) / 100;
             $reward -= $reward * $factor;
         } else {
