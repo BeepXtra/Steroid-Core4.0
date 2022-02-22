@@ -91,10 +91,15 @@ if ($_config['testnet'] == true) {
 }
 
 // current hostname
-$hostname = (!empty($_SERVER['HTTPS']) ? 'https' : 'http')."://".san_host($_SERVER['HTTP_HOST']);
-// set the hostname to the current one
+if(!isset($_SERVER['HTTP_HOST'])){
+    $hostname = 'localhost';
+} else {
+    $hostname = (!empty($_SERVER['HTTPS']) ? 'https' : 'http')."://".san_host($_SERVER['HTTP_HOST']);
+}
 
-if ($hostname != $_config['hostname'] && $_SERVER['HTTP_HOST'] != "localhost" && $_SERVER['HTTP_HOST'] != "127.0.0.1" && $_SERVER['HTTP_HOST'] != '::1' && php_sapi_name() !== 'cli' && ($_config['allow_hostname_change'] != false || empty($_config['hostname']))) {
+// set the hostname to the current one
+//print_r($_SERVER);
+if (isset($_SERVER['HTTP_HOST']) && $hostname != $_config['hostname'] && $_SERVER['HTTP_HOST'] != "localhost" && $_SERVER['HTTP_HOST'] != "127.0.0.1" && $_SERVER['HTTP_HOST'] != '::1' && php_sapi_name() !== 'cli' && ($_config['allow_hostname_change'] != false || empty($_config['hostname']))) {
     $db->run("UPDATE config SET val=:hostname WHERE cfg='hostname' LIMIT 1", [":hostname" => $hostname]);
     $_config['hostname'] = $hostname;
 }

@@ -69,7 +69,7 @@ if ($q == "info") {
     $argon_mem=524288;
     $argon_threads=1;
     $argon_time=1;
-    if ($current_height<80000) {
+    if ($current_height<6855) {
         if($current_height%2==0){
 	    $argon_mem=524288;
             $argon_threads=1;
@@ -80,7 +80,7 @@ if ($q == "info") {
             $argon_time=4;
 
 	}
-     } elseif($current_height>=80458){
+     } elseif($current_height>=6855){
 	if($current_height%2==0){
 	    $argon_mem=524288;
             $argon_threads=1;
@@ -110,6 +110,8 @@ if ($q == "info") {
             }
         }
     }
+    
+    
     $res = [
         "difficulty" => $diff,
         "block"      => $current['id'],
@@ -154,9 +156,13 @@ if ($q == "info") {
             $current['id']=escapeshellarg(san($current['id']));
             system("php propagate.php block $current[id]  > /dev/null 2>&1  &");
             print_r(json_encode(api_echo("accepted")));
+        } else {
+            print_r(json_encode(api_err("rejected")));
         }
+    } else {
+        print_r(json_encode(api_err("rejected")));
     }
-    print_r(json_encode(api_err("rejected")));
+    
 } elseif ($q == "submitBlock") {
     // in case the blocks are syncing, reject all
     if ($_config['sanity_sync'] == 1) {
