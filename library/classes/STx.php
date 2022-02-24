@@ -36,7 +36,7 @@ class STx {
     public function reverse($block)
     {
         global $db;
-        
+        require_once 'SWallet.php';
         $acc = new SWallet();
         $r = $db->run("SELECT * FROM transactions WHERE block=:block ORDER by `version` DESC", [":block" => $block]);
         foreach ($r as $x) {
@@ -239,6 +239,7 @@ class STx {
     public function clean_mempool()
     {
         global $db;
+        require_once 'SBlock.php';
         $block = new SBlock();
         $current = $block->current();
         $height = $current['height'];
@@ -250,6 +251,7 @@ class STx {
     public function mempool($max)
     {
         global $db;
+        require_once 'SBlock.php';
         $block = new SBlock();
         $current = $block->current();
         $height = $current['height'] + 1;
@@ -342,6 +344,7 @@ class STx {
     {
         global $db;
         global $_config;
+        require_once 'SBlock.php';
         $block = new SBlock();
         if ($x['version']>110) {
             return true;
@@ -390,6 +393,7 @@ class STx {
     public function add($block, $height, $x)
     {
         global $db;
+        require_once 'SWallet.php';
         $acc = new SWallet();
         // not a valid or useful public key for internal transactions
         if ($x['version']!=58 && $x['version']!=59) {
@@ -434,6 +438,7 @@ class STx {
         } elseif ($x['version']==100&&$height>=80000) {
             //master node deposit
         } elseif ($x['version']==103&&$height>=80000) {
+            require_once 'SBlock.php';
             $blk=new SBlock();
             $blk->masternode_log($x['public_key'], $height, $block);
 
@@ -632,10 +637,12 @@ class STx {
         }
         // if no specific block, use current
         if ($height === 0) {
+            require_once 'SBlock.php';
             $block = new SBlock();
             $current = $block->current();
             $height = $current['height'];
         }
+        require_once 'SWallet.php';
         $acc = new SWallet();
         $info = $x['val']."-".$x['fee']."-".$x['dst']."-".$x['message']."-".$x['version']."-".$x['public_key']."-".$x['date'];
 
@@ -648,7 +655,6 @@ class STx {
             
         // internal transactions
         if ($x['version']>110 || $x['version'] == 57 || $x['version'] == 58 || $x['version'] == 59) {
-            
             return false;
         }
 
@@ -660,7 +666,6 @@ class STx {
 
         // the fee must be >=0
         if ($x['fee'] < 0) {
-            
             _log("$x[id] - Fee below 0", 3);
             return false;
         }
@@ -671,9 +676,8 @@ class STx {
         if ($fee < 0.00000001) {
             $fee = 0.00000001;
         }
-        
         //alias fee
-        if ($x['version']==3&&$height>=80000) {
+        if ($x['version']==3&&$height>=20) {
             $fee=10;
             if (!$acc->free_alias($x['message'])) {
                 _log("Alias not free", 3);
@@ -696,7 +700,6 @@ class STx {
         //masternode transactions
         
         if ($x['version']>=100&&$x['version']<110&&$height>=80000) {
-            
             if ($x['version']==100) {
                 $message=$x['message'];
                 $message=preg_replace("/[^0-9\.]/", "", $message);
@@ -814,10 +817,8 @@ class STx {
         if(($x['version']==106||$x['version']==107||$x['version']==105||$x['version']==104)&&$height<=216000){
             return false;
         }
-        
         // assets
         if ($x['version']==50) {
-            
             // asset creation
             // fixed asset price 100 +. The 100 are burned and not distributed to miners.
             if ($x['val']!=100) {
@@ -906,8 +907,7 @@ class STx {
             }
         }
         // make sure the dividend only function is not bypassed after height X
-        if (($x['version']==1||$x['version']==2)&&$height>216000) {
-            
+        if (($x['version']==1||$x['version']==2)&&$height>20) {
             $check=$db->single("SELECT COUNT(1) FROM assets WHERE id=:id AND dividend_only=1", [":id"=>$src]);
             if ($check==1) {
                 _log("This asset wallet cannot send funds directly", 3);
@@ -1019,15 +1019,13 @@ class STx {
         }
 
         // max fee after block 10800 is 10
-        if ($height > 10800 && $fee > 10) {
-            $fee = 10; //10800
+        if ($height > 20 && $fee > 10) {
+            //$fee = 10; //10800
         }
         // added fee does not match
-        
         if ($fee != $x['fee']) {
-            _log("$x[id] - Fee not 0.25%", 3);
+            _log("$x[id] - Fee not 0.3%", 3);
             _log(json_encode($x), 3);
-            
             return false;
         }
 
@@ -1037,7 +1035,7 @@ class STx {
                 _log("$x[id] - Invalid destination address", 3);
                 return false;
             }
-        } elseif ($x['version']==2&&$height>=80000) {
+        } elseif ($x['version']==2&&$height>=20) {
             if (!$acc->valid_alias($x['dst'])) {
                 _log("$x[id] - Invalid destination alias", 3);
                 return false;
@@ -1067,11 +1065,7 @@ class STx {
             _log("$x[id] - Date in the future", 3);
             return false;
         }
-        // prevent the resending of broken base58 transactions
-        if ($height > 16900 && $x['date'] < 1519327780) {
-            _log("$x[id] - Broken base58 transaction", 3);
-            return false;
-        }
+        
         $id = $this->hash($x);
         // the hash does not match our regenerated hash
         if ($x['id'] != $id) {
@@ -1080,7 +1074,7 @@ class STx {
             if (((strlen($xs) != 63 || substr($id, 1) != $x['id']) && (strlen($xs) != 62 || substr(
                 $id,
                 2
-            ) != $x['id'])) || $height > 16900) {
+            ) != $x['id']))) {
                 _log("$x[id] - $id - Invalid hash");
                 return false;
             }
@@ -1133,6 +1127,8 @@ class STx {
     public function get_transaction($id)
     {
         global $db;
+        require_once 'SBlock.php';
+        require_once 'SWallet.php';
         $acc = new SWallet();
         $block = new SBlock();
         $current = $block->current();
@@ -1177,9 +1173,10 @@ class STx {
     public function get_transactions($height = "", $id = "", $includeMiningRewards = false)
     {
         global $db;
+        require_once 'SBlock.php';
         $block = new SBlock();
-                
         $current = $block->current();
+        require_once 'SWallet.php';
         $acc = new SWallet();
         $height = san($height);
         $id = san($id);
@@ -1258,7 +1255,4 @@ class STx {
         ksort($trans);
         return $trans;
     }
-    
-   
 }
-?>

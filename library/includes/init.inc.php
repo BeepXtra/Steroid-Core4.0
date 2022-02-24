@@ -1,6 +1,6 @@
 <?php
 // BPC version
-define("VERSION", "1.0.0-alpha.5");
+define("VERSION", "1.0.1-alpha.5");
 // UTC timezone by default
 date_default_timezone_set("UTC");
 
@@ -16,9 +16,9 @@ require_once __DIR__.'/db.inc.php';
 require_once __DIR__.'/functions.inc.php';
 require_once __DIR__.'/Blacklist.php';
 require_once __DIR__.'/InitialPeers.php';
-//require_once __DIR__.'/block.inc.php';
-//require_once __DIR__.'/account.inc.php';
-//require_once __DIR__.'/transaction.inc.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/SBlock.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/SWallet.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/STx.php';
 
 if ($_config['db_pass'] == "ENTER-DB-PASS") {
     die("Please update your config file and set your db password");

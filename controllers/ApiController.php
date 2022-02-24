@@ -53,90 +53,92 @@ class ApiController extends AbstractController {
                 $data = $this->success('Basic API Information');
                 break;
             case 1:
-                    $data = $this->getInfo();
+                $data = $this->getInfo();
                 break;
             case 2:
-                if ($request->url_elements[1] == 'tos') {
-                    $data = $this->getTos($request);
-                } elseif($request->url_elements[1] == 'generate_wallet'){
+                if ($request->url_elements[1] == 'generate_wallet') {
                     /*
                      * @url /api/generate_wallet
                      */
                     $data = $this->sapi->generate_account();
-                } elseif($request->url_elements[1] == 'currentblock'){
+                } elseif ($request->url_elements[1] == 'currentblock') {
                     /*
                      * @url /api/currentblock
                      */
                     $data = $this->sapi->currentblock();
-                } elseif($request->url_elements[1] == 'version'){
+                } elseif ($request->url_elements[1] == 'version') {
                     /*
                      * @url /api/currentblock
                      */
                     $data = $this->sapi->version();
-                } elseif($request->url_elements[1] == 'test'){
+                } elseif ($request->url_elements[1] == 'test') {
                     $data = $this->sapi->test('1');
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
                 }
                 break;
             case 3:
-                if($request->url_elements[1] == 'getbalance'){
+                if ($request->url_elements[1] == 'getbalance') {
                     /*
                      * @url /api/getbalance/$address
                      */
                     $data = $this->sapi->getbalance($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'getpendingbalance'){
+                } elseif ($request->url_elements[1] == 'getpendingbalance') {
                     /*
                      * @url /api/getpendingbalance/$public_key
                      */
                     $data = $this->sapi->getpendingbalance($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'gettransactions'){
+                } elseif ($request->url_elements[1] == 'gettransactions') {
                     /*
                      * @url /api/getpendingbalance/$address
                      */
                     $data = $this->sapi->gettransactions($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'gettransaction'){
+                } elseif ($request->url_elements[1] == 'gettransaction') {
                     /*
                      * @url /api/gettransaction/$id
                      */
                     $data = $this->sapi->gettransaction($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'getpublickey'){
+                } elseif ($request->url_elements[1] == 'getpublickey') {
                     /*
                      * @url /api/getpublickey/$id
                      */
-                    
+
                     $data = $this->sapi->getpublickey($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'getaddress'){
+                } elseif ($request->url_elements[1] == 'getaddress') {
                     /*
                      * @url /api/getaddress/$public_key
                      */
+                    if (strlen($request->url_elements[2]) < 32) {
+                        return $this->error("Invalid public key");
+                    } 
                     $data = $this->sapi->getaddress($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'base58'){
+                    
+                } elseif ($request->url_elements[1] == 'base58') {
                     /*
                      * @url /api/getaddress/$public_key
                      */
                     $data = $this->sapi->base58($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'getblock'){
+                } elseif ($request->url_elements[1] == 'getblock') {
                     /*
                      * @url /api/getblock/$height
                      */
                     $data = $this->sapi->getblock($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'getblocktransactions'){
+                } elseif ($request->url_elements[1] == 'getblocktransactions') {
                     /*
                      * @url /api/getblock/$height
                      */
                     $data = $this->sapi->getblocktransactions($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'send'){
+                } elseif ($request->url_elements[1] == 'send') {
                     /*
                      * @url /api/send/$data...
                      */
                     $data = $this->sapi->send($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'propwallet'){
+                } elseif ($request->url_elements[1] == 'propwallet') {
                     /*
                      * @url /api/send/$data...
                      */
                     $currentblock = $this->sapi->sblock->current();
-                    $this->sapi->swallet->add($request->url_elements[2],$currentblock['id']);
+                    $this->sapi->swallet->add($request->url_elements[2], $currentblock['id']);
                     $data = $this->success('Storing wallet attempted - check to verify');
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
@@ -164,15 +166,14 @@ class ApiController extends AbstractController {
                 $data = $this->error('Please specify a resource to post', 1);
                 break;
             case 2:
-                if($request->url_elements[1] == 'test'){
-                    $data = $this->sapi->test(); 
-                    
+                if ($request->url_elements[1] == 'test') {
+                    $data = $this->sapi->test();
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
                 }
                 break;
             case 3:
-                if($request->url_elements[1] == 'send'){
+                if ($request->url_elements[1] == 'send') {
                     $data = $this->sapi->sendtx($request->url_elements[2]); //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
                     //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
                     //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
@@ -181,7 +182,7 @@ class ApiController extends AbstractController {
                     //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
                     //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
                     //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                } 
+                }
                 break;
             default :
                 $data = $this->error('Invalid request. Please check documentation', 3);
@@ -261,5 +262,5 @@ class ApiController extends AbstractController {
         $data['version'] = '1.0.1b';
         return $data;
     }
-        
+
 }
