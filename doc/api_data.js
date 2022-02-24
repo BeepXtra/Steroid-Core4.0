@@ -61,7 +61,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -98,7 +98,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -142,7 +142,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -193,7 +193,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -266,7 +266,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -304,7 +304,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -341,7 +341,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -385,7 +385,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -436,7 +436,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -522,7 +522,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -664,7 +664,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -708,7 +708,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -745,7 +745,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -873,7 +873,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1008,7 +1008,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1032,7 +1032,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1056,7 +1056,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1136,7 +1136,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1194,7 +1194,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1239,7 +1239,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1325,7 +1325,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1349,7 +1349,7 @@ define({ "api": [
         ]
       }
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./api",
     "groupTitle": "API"
   },
@@ -1389,7 +1389,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1429,7 +1429,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1456,7 +1456,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1503,7 +1503,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1543,7 +1543,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1561,7 +1561,7 @@ define({ "api": [
         "type": "cli"
       }
     ],
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1579,7 +1579,7 @@ define({ "api": [
         "type": "cli"
       }
     ],
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1606,7 +1606,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1646,7 +1646,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1686,7 +1686,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1713,7 +1713,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1753,7 +1753,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1780,7 +1780,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1807,7 +1807,7 @@ define({ "api": [
         }
       ]
     },
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1838,7 +1838,7 @@ define({ "api": [
         "type": "cli"
       }
     ],
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1856,7 +1856,7 @@ define({ "api": [
         "type": "cli"
       }
     ],
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./util.php",
     "groupTitle": "UTIL"
   },
@@ -1882,7 +1882,7 @@ define({ "api": [
     },
     "type": "",
     "url": "",
-    "version": "0.0.0",
+    "version": "1.0.1",
     "filename": "./doc/main.js",
     "group": "_github_node_doc_main_js",
     "groupTitle": "_github_node_doc_main_js",

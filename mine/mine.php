@@ -35,11 +35,9 @@ error_reporting(E_ALL);
 }
 
 require_once '../library/includes/init.inc.php';
-require_once '../library/classes/SBlock.php';
 $block = new SBlock();
-require_once '../library/classes/SWallet.php';
 $acc = new SWallet();
-set_time_limit(10);
+set_time_limit(360);
 $q = $_GET['q'];
 
 $ip = san_ip($_SERVER['REMOTE_ADDR']);
@@ -56,31 +54,18 @@ if ($_config['testnet'] == false && !in_array($ip, $_config['allowed_hosts']) &&
 if ($q == "info") {
     // provides the mining info to the miner
     $diff = $block->difficulty();
-    
-    
     $current = $block->current();
 
     $current_height=$current['height'];
-    if($current_height < 100000){
-            $diff = $diff*1000000;
-        }
+    //if($current_height < 1000000){
+            //$diff = $diff*1000000;
+    //    }
     
     $recommendation="mine";
     $argon_mem=524288;
     $argon_threads=1;
     $argon_time=1;
-    if ($current_height<6855) {
-        if($current_height%2==0){
-	    $argon_mem=524288;
-            $argon_threads=1;
-            $argon_time=1;
-	} else {
-	    $argon_mem=16384;
-            $argon_threads=4;
-            $argon_time=4;
-
-	}
-     } elseif($current_height>=6855){
+    if($current_height){
 	if($current_height%2==0){
 	    $argon_mem=524288;
             $argon_threads=1;
@@ -110,8 +95,6 @@ if ($q == "info") {
             }
         }
     }
-    
-    
     $res = [
         "difficulty" => $diff,
         "block"      => $current['id'],
@@ -129,8 +112,6 @@ if ($q == "info") {
     if ($_config['sanity_sync'] == 1) {
         print_r(json_encode(api_err("sanity-sync")));
     }
-    
-   
     $nonce = san($_POST['nonce']);
     $argon = $_POST['argon'];
     $public_key = san($_POST['public_key']);
@@ -144,22 +125,26 @@ if ($q == "info") {
     }
     // check if the miner won the block
     $result = $block->mine($public_key, $nonce, $argon);
-    //echo 'BLOCKMINE';print_r($result);die;
+    
     if ($result) {
+        _log("Miner won", 3);
         // generate the new block
         $res = $block->forge($nonce, $argon, $public_key, $private_key);
 
 
         if ($res) {
+            _log("Miner generated block", 3);
             //if the new block is generated, propagate it to all peers in background
             $current = $block->current();
             $current['id']=escapeshellarg(san($current['id']));
             system("php propagate.php block $current[id]  > /dev/null 2>&1  &");
             print_r(json_encode(api_echo("accepted")));
         } else {
+            _log("Miner nonce failed to forge block", 3);
             print_r(json_encode(api_err("rejected")));
         }
     } else {
+        _log("Miner failed to verify argon ".$argon, 3);
         print_r(json_encode(api_err("rejected")));
     }
     
@@ -183,17 +168,11 @@ if ($q == "info") {
         }
 
         // get the mempool transactions
-        require_once '../library/classes/STx.php';
         $txn = new STx();
         $current = $block->current();
         $height = $current['height'] += 1;
-  
-        // get the mempool transactions
-        $txn = new STx();
-        
 
         $difficulty = $block->difficulty();
-        require_once '../library/classes/SWallet.php';
         $acc = new SWallet();
         $generator = $acc->get_address($public_key);
 
@@ -247,13 +226,11 @@ if ($q == "info") {
     if ($_config['sanity_sync'] == 1) {
         print_r(json_encode(api_err("sanity-sync")));
     }
-    require_once '../library/classes/SBlock.php';
     $block = new SBlock();
     $current = $block->current();
     $height = $current['height'] += 1;
     $date = time();
     // get the mempool transactions
-    require_once '../library/classes/STx.php';
     $txn = new STx();
     $data = $txn->mempool($block->max_transactions());
 
