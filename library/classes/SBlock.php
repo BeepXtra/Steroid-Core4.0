@@ -975,7 +975,7 @@ class SBlock {
         if ($time == 0) {
             $time = time();
         }
-        _log("Block Timestamp $time", 3);
+        //_log("Block Timestamp $time", 3);
         // get the current difficulty if empty
         if ($difficulty === 0) {
             $difficulty = $this->difficulty();
@@ -995,12 +995,12 @@ class SBlock {
                 // cpu mining
                 _log("CPU Mining - $current_height", 2);
                 $argon = '$argon2i$v=19$m=524288,t=1,p=1' . $argon;
-                _log("argon submitted " . $argon, 3);
+                //_log("argon submitted " . $argon, 3);
             } else {
                 // gpu mining
                 _log("GPU Mining - $current_height", 2);
                 $argon = '$argon2i$v=19$m=16384,t=4,p=4' . $argon;
-                _log("argon submitted " . $argon, 3);
+                //_log("argon submitted " . $argon, 3);
             }
         } else {
             _log("Block - $current_height", 2);
@@ -1009,12 +1009,12 @@ class SBlock {
                 // cpu mining
                 _log("CPU Mining - $current_height", 2);
                 $argon = '$argon2i$v=19$m=524288,t=1,p=1' . $argon;
-                _log("argon submitted " . $argon, 3);
+                //_log("argon submitted " . $argon, 3);
             } elseif ($current_height % 2 == 1) {
                 // gpu mining
                 _log("GPU Mining - $current_height", 2);
                 $argon = '$argon2i$v=19$m=16384,t=4,p=4' . $argon;
-                _log("argon submitted " . $argon, 3);
+                //_log("argon submitted " . $argon, 3);
             } else {
                 _log("Masternode Mining - $current_height", 2);
                 // masternode
@@ -1089,14 +1089,14 @@ class SBlock {
 
         // the hash base for argon
         $base = $public_key . '-' . $nonce . '-' . $current_id . '-' . $difficulty;
-        _log("Base " . $base." Argon:".$argon, 3);
+        //_log("Base " . $base." Argon:".$argon, 3);
 
         // check argon's hash validity
         if (!password_verify($base, $argon)) {
             _log("--> ARGON VERIFY FAILED - $base - $argon", 3);
             return false;
         }
-        _log("--> ARGON VERIFY PASSED", 3);
+        //_log("--> ARGON VERIFY PASSED", 3);
         // all nonces are valid in testnet
         if ($_config['testnet'] == true) {
             return true;
