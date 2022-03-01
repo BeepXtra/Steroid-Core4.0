@@ -7,13 +7,13 @@
 */
 
 // The database DSN
-$_config['db_connect'] = 'mysql:host=localhost;dbname=S4QL';
+$_config['db_connect'] = 'mysql:host=localhost;dbname=testnet';
 
 // The database username
-$_config['db_user'] = 'node';
+$_config['db_user'] = 'testnet';
 
 // The database password
-$_config['db_pass'] = 'upGlHjJdB3xXarRU';
+$_config['db_pass'] = '1QHUGrl7mCQ33uSg';
 
 /*
 |--------------------------------------------------------------------------
