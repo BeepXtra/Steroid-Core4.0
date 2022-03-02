@@ -19,7 +19,7 @@ class strdconfig {
     // Enable testnet mode for development
     public $testnet = false;
     // To avoid any problems if other clones are made
-    public $coin = 'cru';
+    public $coin = 'bpc';
     // Allow others to connect to the node api (if set to false, only the below 'allowed_hosts' are allowed)
     public $public_api = true;
     // Hosts that are allowed to mine on this node
