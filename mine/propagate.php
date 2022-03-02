@@ -23,7 +23,14 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 OR OTHER DEALINGS IN THE SOFTWARE.
 */
+define('_SECURED', 1);
 set_time_limit(360);
+include('library/classes/SCore.php');
+$platform = new SCore();
+//parse configuration
+$_config = $platform->config;
+//initialize database library
+$db = $platform->db;
 require_once '../library/includes/init.inc.php';
 require_once '../library/classes/SBlock.php';
 $block = new SBlock();
@@ -68,7 +75,7 @@ if ((empty($peer) || $peer == 'all') && $type == "block") {
     }
     $r = $db->run("SELECT * FROM peers WHERE blacklisted < UNIX_TIMESTAMP() AND reserve=0 $ewhr");
     foreach ($r as $x) {
-        if($x['hostname']==$_config['hostname']) continue;
+        if($x['hostname']==$_config->hostname) continue;
         // encode the hostname in base58 and sanitize the IP to avoid any second order shell injections
         $host = escapeshellcmd(base58_encode($x['hostname']));
         $ip = escapeshellcmd(filter_var($x['ip'], FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE));
@@ -173,7 +180,7 @@ if ($type == "transaction") {
         $r = $db->run("SELECT hostname FROM peers WHERE blacklisted < UNIX_TIMESTAMP()");
     } else {
 
-        $r = $db->run("SELECT hostname FROM peers WHERE blacklisted < UNIX_TIMESTAMP() AND reserve=0  ORDER by RAND() LIMIT :limit",["limit"=>intval($_config['transaction_propagation_peers'])]);
+        $r = $db->run("SELECT hostname FROM peers WHERE blacklisted < UNIX_TIMESTAMP() AND reserve=0  ORDER by RAND() LIMIT :limit",["limit"=>intval($_config->transaction_propagation_peers)]);
     }
     foreach ($r as $x) {
         $res = peer_post($x['hostname']."/peer.php?q=submitTransaction", $data);

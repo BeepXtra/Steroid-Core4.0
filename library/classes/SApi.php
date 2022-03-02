@@ -211,7 +211,7 @@ class SApi {
     if (!$acc->valid_key($public_key)) {
         return api_err("Invalid public key");
     }
-    if ($_config['use_official_blacklist']!==false) {
+    if ($_config->use_official_blacklist!==false) {
         //Throws error when calling namespace
         //TODO Convert to class and load in abstract controller
         if (Blacklist::checkPublicKey($public_key)) {
