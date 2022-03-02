@@ -115,13 +115,12 @@ class strdconfig {
         $this->log_file = '/var/log/'.$this->coin.'.log';
     }
 
-    function getTld() {
+    public function getTld() {
         //print_r($_SERVER);
-        $tld = strrchr($_SERVER['HTTP_HOST'], ".");
-        $tld = substr($tld, 1);
+        $tldsrc = strrchr($_SERVER['HTTP_HOST'], ".");
+        $tld = substr($tldsrc, 1);
         return $tld;
     }
 
 }
-
 ?>
