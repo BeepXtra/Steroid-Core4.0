@@ -19,34 +19,28 @@ class SCore {
         if (file_exists('strdconfig.php')) {
             include_once('strdconfig.php');
         } else {
-            //If it is called from a subdirectory. For different solution change it...
+            //If it is called from a subdirectory (e.g. /mine/ ). 
             include_once('../strdconfig.php');
         }
 
         $this->config = new strdconfig();
         //$this->memcache = new memcache;
         $this->security = 1;
-        if (isset($_GET["lang"])) {
-            $this->lang = $_GET["lang"];
-        } else {
-            $this->lang = "en";
-        }
-        // $_SESSION["language_code"]=$this->lang;
+        $this->db = $this->connect_to_database();
     }
 
     ////////////////////////DATABASE FUNCTIONS///////////////////
     //connect to the database
-    function connect_to_database() {
+    private function connect_to_database() {
         //If the file is called from the index.php of the global site
-        if (file_exists('library/databasegeneral.php')) {
-            include_once('library/databasegeneral.php');
+        if (file_exists('library/includes/db.inc.php')) {
+            require_once('library/includes/db.inc.php');
         } else {
             //If it is called from a subdirectory. For different solution change it...
-            include_once('../library/databasegeneral.php');
+            include_once('../library/includes/db.inc.php');
         }
-
-        $this->db = new mysqlDatabase();
-        $this->db->open_connection();
+        $db_connect = 'mysql:host='.$this->config->db_hostname.';dbname='.$this->config->strd_database;
+        $this->db = new DB($db_connect, $this->config->db_username, $this->config->db_password, $this->config->enable_logging);
         return $this->db;
     }
 
@@ -59,22 +53,11 @@ class SCore {
         }
     }
 
-    //close database
-    function database_close() {
-        $this->db->close_connection();
-    }
-
     ///////////////////END OF DATABASE FUNCTIONS///////////////////
     
     //////////////////GET DATA////////////////////////////////////
     function getdata($query) {
-        $result = $this->db->query($query);
-        return $this->db->fetch_assoc($result);
-    }
-    
-    function getsingle($query){
-        $result = $this->db->query($query);
-        return $this->db->fetch_row($result);
+        return $this->db->single($query);
     }
     //////////////////END OF GET DATA/////////////////////////////
 
