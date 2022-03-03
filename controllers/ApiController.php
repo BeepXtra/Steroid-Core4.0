@@ -2,45 +2,6 @@
 
 class ApiController extends AbstractController {
 
-    /**
-     * GET method.
-     * 
-     * @param  Request $request
-     * @return string
-     */
-    public function get($request) {
-        $data = $this->beginRequest($request);
-        return $data;
-    }
-
-    public function post($request) {
-        $data = $this->beginRequest($request, 'post');
-        return $data;
-    }
-
-    public function put($request) {
-        $data = $this->beginRequest($request, 'put');
-        return $data;
-    }
-
-    public function delete($request) {
-        $data = $this->beginRequest($request, 'delete');
-        return $data;
-    }
-
-    protected function beginRequest($request, $method = null) {
-        if (!$method || $method == 'get') {
-            $data = $this->getRequest($request);
-        } elseif ($method == 'post') {
-            $data = $this->postRequest($request);
-        } elseif ($method == 'put') {
-            $data = $this->putRequest($request);
-        } elseif ($method == 'delete') {
-            $data = $this->deleteRequest($request);
-        }
-        return $data;
-    }
-
     protected function getRequest($request) {
         switch (count($request->url_elements)) {
             /*
@@ -71,6 +32,9 @@ class ApiController extends AbstractController {
                      * @url /api/currentblock
                      */
                     $data = $this->sapi->version();
+                    
+                } elseif ($request->url_elements[1] == 'mempoolsize') {
+                    $data = $this->sapi->mempoolsize();
                 } elseif ($request->url_elements[1] == 'test') {
                     $data = $this->sapi->test('1');
                 } else {
@@ -135,7 +99,7 @@ class ApiController extends AbstractController {
                     $data = $this->sapi->send($request->url_elements[2]);
                 } elseif ($request->url_elements[1] == 'propwallet') {
                     /*
-                     * @url /api/send/$data...
+                     * @url /api/propwallet/$public_key
                      */
                     $currentblock = $this->sapi->sblock->current();
                     $this->sapi->swallet->add($request->url_elements[2], $currentblock['id']);
@@ -146,6 +110,16 @@ class ApiController extends AbstractController {
                 break;
             case 4:
                 $data = $this->error('Incomplete request. Please check documentation', 2);
+                break;
+            case 5:
+                if($request->url_elements[1] == 'checksignature'){
+                    /*
+                     * @url /api/checksignature/$public_key/$signature/$data
+                     */
+                    $data = $this->sapi->checksignature($request);
+                } else {
+                    $data = $this->error('Incomplete request. Please check documentation', 2);
+                }
                 break;
             default :
                 $data = $this->error('Invalid request. Please check documentation', 3);
@@ -232,27 +206,43 @@ class ApiController extends AbstractController {
             return $this->error('Something went wrong with your request', 5);
         }
     }
-
-    protected function prepareEmail($request) {
-        echo '<pre>';
-        print_r($request);
+    
+    /**
+     * GET method.
+     * 
+     * @param  Request $request
+     * @return string
+     */
+    public function get($request) {
+        $data = $this->beginRequest($request);
+        return $data;
     }
 
-    protected function getTos($request) {
-        if (isset($request->url_elements[2]) && is_numeric($request->url_elements[2])) {
-            //check country
-            switch ($request->url_elements[2]) {
-                case 59:
-                    $data = array(file_get_contents('tos.php'));
-                    break;
-                default:
-                    $data = array(file_get_contents('tos.php'));
-                    break;
-            }
-        } else {
-            $data = array(file_get_contents('tos.php'));
-        }
+    public function post($request) {
+        $data = $this->beginRequest($request, 'post');
+        return $data;
+    }
 
+    public function put($request) {
+        $data = $this->beginRequest($request, 'put');
+        return $data;
+    }
+
+    public function delete($request) {
+        $data = $this->beginRequest($request, 'delete');
+        return $data;
+    }
+
+    protected function beginRequest($request, $method = null) {
+        if (!$method || $method == 'get') {
+            $data = $this->getRequest($request);
+        } elseif ($method == 'post') {
+            $data = $this->postRequest($request);
+        } elseif ($method == 'put') {
+            $data = $this->putRequest($request);
+        } elseif ($method == 'delete') {
+            $data = $this->deleteRequest($request);
+        }
         return $data;
     }
 

@@ -104,7 +104,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/checkAddress",
+    "url": window.location.hostname+"/api/checkaddress",
     "title": "22. checkAddress",
     "name": "checkAddress",
     "group": "API",
@@ -148,7 +148,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/checkSignature",
+    "url": window.location.hostname+"/api/checksignature/$public_key/$signature/$data",
     "title": "17. checkSignature",
     "name": "checkSignature",
     "group": "API",
@@ -159,21 +159,21 @@ define({ "api": [
           {
             "group": "Parameter",
             "type": "string",
-            "optional": true,
+            "optional": false,
             "field": "public_key",
             "description": "<p>Public key</p>"
           },
           {
             "group": "Parameter",
             "type": "string",
-            "optional": true,
+            "optional": false,
             "field": "signature",
             "description": "<p>signature</p>"
           },
           {
             "group": "Parameter",
             "type": "string",
-            "optional": true,
+            "optional": false,
             "field": "data",
             "description": "<p>signed data</p>"
           }
@@ -347,7 +347,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/getAlias",
+    "url": window.location.hostname+"/api/getalias",
     "title": "19. getAlias",
     "name": "getAlias",
     "group": "API",
@@ -391,7 +391,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/getBalance/$address",
+    "url": window.location.hostname+"/api/getbalance/$address",
     "title": "04. getBalance",
     "name": "getBalance",
     "group": "API",
@@ -670,7 +670,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/getPendingBalance",
+    "url": window.location.hostname+"/api/getpendingbalance",
     "title": "05. getPendingBalance",
     "name": "getPendingBalance",
     "group": "API",
@@ -714,7 +714,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/getPublicKey",
+    "url": window.location.hostname+"/api/getpublickey",
     "title": "08. getPublicKey",
     "name": "getPublicKey",
     "group": "API",
@@ -751,7 +751,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/getTransaction/$id",
+    "url": window.location.hostname+"/api/gettransaction/$id",
     "title": "07. getTransaction",
     "name": "getTransaction",
     "group": "API",
@@ -879,7 +879,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/getTransactions/$address",
+    "url": window.location.hostname+"/api/gettransactions/$address",
     "title": "06. getTransactions",
     "name": "getTransactions",
     "group": "API",
@@ -1038,7 +1038,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/mempoolSize",
+    "url": window.location.hostname+"/api/mempoolsize",
     "title": "15. mempoolSize",
     "name": "mempoolSize",
     "group": "API",
@@ -1142,7 +1142,7 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/api/randomNumber",
+    "url": window.location.hostname+"/api/randomnumber",
     "title": "16. randomNumber",
     "name": "randomNumber",
     "group": "API",
@@ -1633,7 +1633,7 @@ define({ "api": [
     "examples": [
       {
         "title": "Example usage:",
-        "content": "php util.php delete-peer http://peer1.steroid.io",
+        "content": "php util.php delete-peer http://peerX.steroid.io",
         "type": "cli"
       }
     ],
@@ -1775,7 +1775,7 @@ define({ "api": [
       "examples": [
         {
           "title": "Success-Response:",
-          "content": "http://35.190.160.142   active\n...\nhttp://aro.master.hashpi.com    active",
+          "content": "http://123.123.123.123   active\n...\nhttp://peer1.steroid.io    active",
           "type": "text"
         }
       ]
