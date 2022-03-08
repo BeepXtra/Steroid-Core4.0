@@ -8,9 +8,9 @@ require_once __DIR__.'/Exception.php';
 require_once __DIR__.'/functions.inc.php';
 require_once __DIR__.'/Blacklist.php';
 require_once __DIR__.'/InitialPeers.php';
-require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/SBlock.php';
-require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/SWallet.php';
-require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/STx.php';
+require_once $platform->config->root_folder.'/library/classes/SBlock.php';
+require_once $platform->config->root_folder.'/library/classes/SWallet.php';
+require_once $platform->config->root_folder.'/library/classes/STx.php';
 
 if ($platform->config->db_password == "ENTER-DB-PASS") {
     die("Please update your config file and set your db password");

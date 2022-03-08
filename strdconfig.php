@@ -8,6 +8,7 @@ class strdconfig {
     public $db_password = '1QHUGrl7mCQ33uSg';
     public $strd_database = 'testnet';
     public $debug = 1;
+    public $root_folder ='/data/wwwroot/testnet.steroid.io';
     //The time a session should be left alive (In seconds)
     //This is for security reasons. Users will be automatically logged out after the specified seconds of inactivity
     public $session_timeout = '10800';
@@ -108,7 +109,13 @@ class strdconfig {
      */
 
     function __construct() {
-        $servername = explode('.', $_SERVER['HTTP_HOST']);
+        //print_r($_SERVER);
+        if(isset($_SERVER['HTTP_HOST'])){
+            $servername = explode('.', $_SERVER['HTTP_HOST']);
+        } else {
+            $servername = 'localhost';
+        }
+        
         $this->debug_queries = $this->debug;
 
         // The specified file to write to (this should not be publicly visible)
