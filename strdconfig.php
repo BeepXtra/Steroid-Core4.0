@@ -8,13 +8,14 @@ class strdconfig {
     public $db_password = '1QHUGrl7mCQ33uSg';
     public $strd_database = 'testnet';
     public $debug = 1;
-    public $root_folder ='/data/wwwroot/testnet.steroid.io';
+    public $root_folder = '';
     //The time a session should be left alive (In seconds)
     //This is for security reasons. Users will be automatically logged out after the specified seconds of inactivity
     public $session_timeout = '10800';
     //Time settings
     public $timezone = 'UTC';
     //Chain configuration
+    public $premine = 500000000;
     // Maximum number of connected peers
     public $max_peers = 30;
     // Enable testnet mode for development
@@ -109,7 +110,8 @@ class strdconfig {
      */
 
     function __construct() {
-        //print_r($_SERVER);
+        $this->root_folder = dirname(__FILE__);
+        
         if(isset($_SERVER['HTTP_HOST'])){
             $servername = explode('.', $_SERVER['HTTP_HOST']);
         } else {

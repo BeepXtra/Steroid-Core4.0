@@ -729,7 +729,10 @@ class SBlock {
 
     // calculate the reward for each block
     public function reward($id, $data = []) {
-        
+        global $platform;
+        if($id ==1 && $platform->config->premine){
+            return number_format($platform->config->premine, 8, '.', '');
+        }
         // starting reward
         $reward = 1;
         // decrease by 1% each 10800 blocks (approx 1 month)
@@ -1216,26 +1219,26 @@ class SBlock {
         
         
         $nonce = base64_encode(openssl_random_pseudo_bytes(32));
-            $nonce = preg_replace("/[^a-zA-Z0-9]/", "", $nonce);
-            $base = $this->publicKey."-".$nonce."-".$this->block."-".$this->difficulty;
+            //$nonce = preg_replace("/[^a-zA-Z0-9]/", "", $nonce);
+            $base = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCxSfuVGzyQJhvgizJayys9rmiS3pu85PaYy3bGyHKSAvo75SmZJ78bgwY3gajeMXUfNbrM2Gv5WnTfrgFu9UPVckX-IT83QNECZQbJ2kNA6EXQUrswoaKgvvSco7DsBNjseI-1-5555555555';
             //$base = $this->publicKey."-".$nonce."-".$this->height."-".$this->difficulty;
             
 
             //echo "/n $base/n";
             //PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCx8yGj2PNN4MTehQGt5t3TXuLUsVBi52qQuoXChcMpsUBHu9khFJjTWLPXM3L6KSjm16kfwjQmvDUQ3URv5qiL9Hy-ptCvZFwwejjSIqN7JNxgjUZxBRxqeruG7FYo6pU8-L6oyJzUD7FkbyLYMeps6qAh7iTzrHvPHMqq8x9dyiUAbGDHAFqWrbbTK1rPaJ9mh8UReDhQvMRwCwPTpU6Z4Zgv-5555555555000000
-            $argon = $this->genArgon($base);
+            //$argon = $this->genArgon($base);
             
-        $signature = 'AN1rKvtLTWvZorbiiNk5TBYXLgxiLakra2byFef9qoz1bmRzhQheRtiWivfGSwP6r8qHJGrf8uBeKjNZP1GZvsdKUVVN2XQoL';
-        $generator = '2P67zUANj7NRKTruQ8nJRHNdKMroY6gLw4NjptTVmYk6Hh1QPYzzfEa9z4gv8qJhuhCNM8p9GDAEDqGUU1awaLW6';
-        $public_key = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCyjGMdVDanywM3CbqvswVqysqU8XS87FcjpqNijtpRSSQ36WexRDv3rJL5X8qpGvzvznuErSRMfb2G6aNoiaT3aEJ';
-        $reward_signature = '381yXZ3yq2AXHHdXfEm8TDHS4xJ6nkV4suXtUUvLjtvuyi17jCujtwcwXuYALM1F3Wiae2A4yJ6pXL1kTHJxZbrJNgtsKEsb';
-        $argon = '$M1ZpVzYzSUxYVFp6cXEwWA$CA6p39MVX7bvdXdIIRMnJuelqequanFfvcxzQjlmiik';
+        $signature = 'iKx1CJPRFSgRshYYfd4nHkTKfam7bhGWcfXa6xmNFDkX3TUG4gm85gWCaXYJP3aGxSmVuvZ8ukaAdCbZETYPH3355d4dv3UDrn';
+        $generator = '3G6XrZGoBwbBRG2WpXpvxGWcPiAovAiYyFAAVusSGXmeDpwe4o7iHmabyDRX1QzWL7rsGQcBfqAM2d13erw1Sthv';
+        $public_key = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCxSfuVGzyQJhvgizJayys9rmiS3pu85PaYy3bGyHKSAvo75SmZJ78bgwY3gajeMXUfNbrM2Gv5WnTfrgFu9UPVckX';
+        $reward_signature = 'iKx1CJPRFSgRshYYfd4nHkTKfam7bhGWcfXa6xmNFDkX3TUG4gm85gWCaXYJP3aGxSmVuvZ8ukaAdCbZETYPH3355d4dv3UDrn';
+        $argon = '$c3JqODRMU3U5VXo4dnA1Mw$VNlhX+SSyQBLEr7VWw98DtsG4Z1S9mB7G2Z8Jun/B0E';
 
         $difficulty = "5555555555";
         $height = 1;
         $data = [];
-        $date = '1515324995';
-        $nonce = '4QRKTSJ+i9Gf9ubPo487eSi+eWOnIBt9w4Y+5J+qbh8=';
+        $date = '1646823187';
+        $nonce = 'IT83QNECZQbJ2kNA6EXQUrswoaKgvvSco7DsBNjseI';
 
         $res = $this->add(
                 $height,
@@ -1246,7 +1249,8 @@ class SBlock {
                 $signature,
                 $difficulty,
                 $reward_signature,
-                $argon
+                $argon,
+                1
         );
         if (!$res) {
             print_r(json_encode(api_err("Could not add the genesis block.")));
