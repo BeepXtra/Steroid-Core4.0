@@ -63,6 +63,10 @@ if (defined('ENVIRONMENT')) {
  */
 include('library/classes/SCore.php');
 $platform = new SCore();
+//parse configuration
+$_config = $platform->config;
+//initialize database library
+$db = $platform->db;
 
 /*
  * Load generic functions
@@ -79,26 +83,14 @@ $block = new SBlock();
 //$block = new Block();
 $current = $block->current();
 
-
-
-/**
- * Open 1 database connection per instance
- * Closes at end of file
- */
-if (!$platform->database_connected()) {
-    $platform->connect_to_database();
-}
-
-
-
-
+//To develop further for private/controlled api access
 $currentapp = explode('|',$_SERVER['HTTP_USER_AGENT']); // 0=>BeepAPI, 1=>Version, 2=>appid, 3=>appkey, 4=>module
 
 /**
  * Common class autoloader.
  * 
  * @param string $class_name <- to automatically load the controller specified
- * Developed by Angel Exevior for using MVC in SApi and other node controllers
+ * Developed by Exevior for using MVC in SApi and other node controllers
  */
 function autoload_class($class_name) {
     $directories = array(
@@ -170,7 +162,7 @@ switch ($request->method) {
 /**
  * Route the request.
  */
-//if (!empty($request->url_elements)) {
+//Load the controller) {
 if ($flag) {
     $controller_name = ucfirst($request->url_elements[0]) . 'Controller';
     if (class_exists($controller_name)) {
@@ -202,26 +194,6 @@ if(!isset($_SERVER['HTTP_ACCEPT'])){
 $response_obj = Response::create($response_str, $accept);
 $response = $response_obj->render();
 echo $response;
-
-/*
- * Log Activity
- */
-
-if(!isset($currentapp[2])){
-    $currentapp[2] = 0;
-}
-$applog = json_encode($currentapp);$applog=  addslashes($applog);
-$requestlog = json_encode($request->url_elements);$requestlog=  addslashes($requestlog);
-if(!strpos($applog, 'uptimerobot')){
-    $responsesafe = addslashes(substr($response,1,15));
-$sql = "INSERT INTO apilog(appid,useragent,request,response) values 
-            ('{$currentapp[2]}','{$applog}','{$requestlog}','{$responsesafe}')";
-        $platform->db->query($sql);
-}
-/**
- * Close the database connection
- */
-$platform->database_close();
 
 /*
  * Performance testing end of run

@@ -28,8 +28,7 @@ function api_err($data)
     if (!headers_sent()) {
         header('Content-Type: application/json');
     }
-    //echo json_encode(["status" => "error", "data" => $data, "coin" => $_config['coin']]);
-    return array("status" => "error", "data" => $data, "coin" => $_config['coin']);
+    return array("status" => "error", "data" => $data, "coin" => $_config->coin);
 }
 
 // api print ok and exit
@@ -40,7 +39,7 @@ function api_echo($data)
     if (!headers_sent()) {
         header('Content-Type: application/json');
     }
-    return array("status" => "ok", "data" => $data, "coin" => $_config['coin']);
+    return array("status" => "ok", "data" => $data, "coin" => $_config->coin);
 }
 
 // log function, shows only in cli atm
@@ -48,7 +47,7 @@ function _log($data, $verbosity = 0)
 {
     //print_r($data);
     global $_config;
-    if ($_config['log_verbosity'] < $verbosity) {
+    if ($_config->log_verbosity < $verbosity) {
         return;
     }
     $date = date("[Y-m-d H:i:s]");
@@ -68,8 +67,8 @@ function _log($data, $verbosity = 0)
     if (php_sapi_name() === 'cli') {
         echo $res;
     }
-    if ($_config['enable_logging'] == true && $_config['log_verbosity'] >= $verbosity) {
-        @file_put_contents($_config['log_file'], $res, FILE_APPEND);
+    if ($_config->enable_logging == true && $_config->log_verbosity >= $verbosity) {
+        file_put_contents($_config->log_file, $res, FILE_APPEND);
     }
 }
 
@@ -269,7 +268,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
     $postdata = http_build_query(
         [
             'data' => json_encode($data),
-            "coin" => $_config['coin'],
+            "coin" => $_config->coin,
         ]
     );
 
@@ -292,7 +291,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
     $res = json_decode($result, true);
 
     // the function will return false if something goes wrong
-    if ($res['status'] != "ok" || $res['coin'] != $_config['coin']) {
+    if ($res['status'] != "ok" || $res['coin'] != $_config->coin) {
         return false;
     }
     return $res['data'];
