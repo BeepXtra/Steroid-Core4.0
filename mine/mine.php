@@ -27,13 +27,26 @@ define('_SECURED', 1);
 
 
 //Development tool
-$debug = 0;
+$debug = 1;
 if($debug){
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 }
 
+
+/**
+ * Load the Core Library
+ */
+include('../library/classes/SCore.php');
+$platform = new SCore();
+//parse configuration
+$_config = $platform->config;
+//initialize database library
+$db = $platform->db;
+/*
+ * Load generic functions
+ */
 require_once '../library/includes/init.inc.php';
 $block = new SBlock();
 $acc = new SWallet();
@@ -44,9 +57,9 @@ $ip = san_ip($_SERVER['REMOTE_ADDR']);
 $ip = filter_var($ip, FILTER_VALIDATE_IP);
 
 // in case of testnet, all IPs are accepted for mining
-if ($_config['testnet'] == false && !in_array($ip, $_config['allowed_hosts']) && !empty($ip) && !in_array(
+if ($_config->testnet == false && !in_array($ip, $_config->allowed_hosts) && !empty($ip) && !in_array(
     '*',
-    $_config['allowed_hosts']
+    $_config->allowed_hosts
 )) {
     api_err("unauthorized");
 }
@@ -99,7 +112,7 @@ if ($q == "info") {
         "difficulty" => $diff,
         "block"      => $current['id'],
         "height"     => $current['height'],
-        "testnet"    => $_config['testnet'],
+        "testnet"    => $_config->testnet,
         "recommendation"=> $recommendation,
         "argon_mem"  => $argon_mem,
         "argon_threads"  => $argon_threads,
@@ -109,7 +122,7 @@ if ($q == "info") {
     exit;
 } elseif ($q == "submitNonce") {
     // in case the blocks are syncing, reject all
-    if ($_config['sanity_sync'] == 1) {
+    if ($_config->sanity_sync == 1) {
         print_r(json_encode(api_err("sanity-sync")));
     }
     $nonce = san($_POST['nonce']);
@@ -150,7 +163,7 @@ if ($q == "info") {
     
 } elseif ($q == "submitBlock") {
     // in case the blocks are syncing, reject all
-    if ($_config['sanity_sync'] == 1) {
+    if ($_config->sanity_sync == 1) {
         print_r(json_encode(api_err("sanity-sync")));
     }
     $nonce = san($_POST['nonce']);
@@ -223,7 +236,7 @@ if ($q == "info") {
     }
     print_r(json_encode(api_err("rejected")));
 } elseif ($q == "getWork") {
-    if ($_config['sanity_sync'] == 1) {
+    if ($_config->sanity_sync == 1) {
         print_r(json_encode(api_err("sanity-sync")));
     }
     $block = new SBlock();

@@ -4,29 +4,16 @@ define("VERSION", "1.0.1-alpha.5");
 // UTC timezone by default
 date_default_timezone_set("UTC");
 
-// not accessible directly
-if (php_sapi_name() !== 'cli' && substr_count($_SERVER['PHP_SELF'], "/") > 1) {
-    //disabled for allowing mining in subfolder - should add excemption to /mine/?q=... requests
-    //die("This application should only be run in the main directory /");
-}
-
 require_once __DIR__.'/Exception.php';
-require_once __DIR__.'/config.inc.php';
-require_once __DIR__.'/db.inc.php';
 require_once __DIR__.'/functions.inc.php';
 require_once __DIR__.'/Blacklist.php';
 require_once __DIR__.'/InitialPeers.php';
-require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/SBlock.php';
-require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/SWallet.php';
-require_once $_SERVER['DOCUMENT_ROOT'].'/library/classes/STx.php';
+require_once $platform->config->root_folder.'/library/classes/SBlock.php';
+require_once $platform->config->root_folder.'/library/classes/SWallet.php';
+require_once $platform->config->root_folder.'/library/classes/STx.php';
 
-if ($_config['db_pass'] == "ENTER-DB-PASS") {
+if ($platform->config->db_password == "ENTER-DB-PASS") {
     die("Please update your config file and set your db password");
-}
-// initial DB connection
-$db = new DB($_config['db_connect'], $_config['db_user'], $_config['db_pass'], $_config['enable_logging']);
-if (!$db) {
-    die("Could not connect to the DB backend.");
 }
 
 // checks for php version and extensions
@@ -53,11 +40,11 @@ if (floatval(phpversion()) < 7.2) {
 // Getting extra configs from the database
 $query = $db->run("SELECT cfg, val FROM config");
 foreach ($query as $res) {
-    $_config[$res['cfg']] = trim($res['val']);
+    $platform->config->{$res['cfg']} = trim($res['val']);
 }
 
 // nothing is allowed while in maintenance
-if ($_config['maintenance'] == 1) {
+if ($platform->config->maintenance == 1) {
     api_err("under-maintenance");
 }
 
@@ -81,13 +68,13 @@ if (file_exists("tmp/db-update")) {
 }
 
 // something went wront with the db schema
-if ($_config['dbversion'] < 2) {
+if ($platform->config->dbversion < 2) {
     exit;
 }
 
 // separate blockchain for testnet
-if ($_config['testnet'] == true) {
-    $_config['coin'] .= "-testnet";
+if ($platform->config->testnet == true) {
+    $platform->config->coin .= "-testnet";
 }
 
 // current hostname
@@ -99,16 +86,16 @@ if(!isset($_SERVER['HTTP_HOST'])){
 
 // set the hostname to the current one
 //print_r($_SERVER);
-if (isset($_SERVER['HTTP_HOST']) && $hostname != $_config['hostname'] && $_SERVER['HTTP_HOST'] != "localhost" && $_SERVER['HTTP_HOST'] != "127.0.0.1" && $_SERVER['HTTP_HOST'] != '::1' && php_sapi_name() !== 'cli' && ($_config['allow_hostname_change'] != false || empty($_config['hostname']))) {
+if (isset($_SERVER['HTTP_HOST']) && $hostname != $platform->config->hostname && $_SERVER['HTTP_HOST'] != "localhost" && $_SERVER['HTTP_HOST'] != "127.0.0.1" && $_SERVER['HTTP_HOST'] != '::1' && php_sapi_name() !== 'cli' && ($platform->config->allow_hostname_change != false || empty($platform->config->hostname))) {
     $db->run("UPDATE config SET val=:hostname WHERE cfg='hostname' LIMIT 1", [":hostname" => $hostname]);
-    $_config['hostname'] = $hostname;
+    $platform->config->hostname = $hostname;
 }
-if (empty($_config['hostname']) || $_config['hostname'] == "http://" || $_config['hostname'] == "https://") {
+if (empty($platform->config->hostname) || $platform->config->hostname == "http://" || $platform->config->hostname == "https://") {
     api_err("Invalid hostname");
 }
 
 // run sanity
 $t = time();
-if ($t - $_config['sanity_last'] > $_config['sanity_interval'] && php_sapi_name() !== 'cli') {
+if ($t - $platform->config->sanity_last > $platform->config->sanity_interval && php_sapi_name() !== 'cli') {
     system("php sanity.php  > /dev/null 2>&1  &");
 }

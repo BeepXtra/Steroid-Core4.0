@@ -33,7 +33,12 @@ error_reporting(0);
 if (php_sapi_name() !== 'cli') {
     die("This should only be run as cli");
 }
-
+include('../library/classes/SCore.php');
+$platform = new SCore();
+//parse configuration
+$_config = $platform->config;
+//initialize database library
+$db = $platform->db;
 require_once '../library/includes/init.inc.php';
 
 // make sure there's only a single sanity process running at the same time
@@ -48,7 +53,7 @@ if (file_exists(SANITY_LOCK_PATH)) {
     $pid_time = filemtime(SANITY_LOCK_PATH);
 
     // If the process died, restart after 60 times the sanity interval
-    if (time() - $pid_time > ($_config['sanity_interval'] * 60 ?? 900 * 60)) {
+    if (time() - $pid_time > ($_config->sanity_interval * 60 ?? 900 * 60)) {
         @unlink(SANITY_LOCK_PATH);
     }
 
@@ -74,7 +79,7 @@ if ($argv[1]=="dev") {
 }
 
 // the sanity can't run without the schema being installed
-if ($_config['dbversion'] < 2) {
+if ($_config->dbversion < 2) {
     die("DB schema not created");
     @unlink(SANITY_LOCK_PATH);
     exit;
@@ -97,8 +102,8 @@ $current = $block->current();
 // bootstrapping the initial sync
 if ($current['height']==1) {
     echo "Bootstrapping!\n";
-    $db_name=substr($_config['db_connect'], strrpos($_config['db_connect'], "dbname=")+7);
-    $db_host=substr($_config['db_connect'], strpos($_config['db_connect'], ":host=")+6);
+    $db_name=substr($_config->db_connect, strrpos($_config->db_connect, "dbname=")+7);
+    $db_host=substr($_config->db_connect, strpos($_config->db_connect, ":host=")+6);
     $db_host=substr($db_host, 0, strpos($db_host, ";"));
 
     echo "DB name: $db_name\n";
@@ -115,7 +120,7 @@ if ($current['height']==1) {
     
 
     echo "Importing the blockchain dump\n";
-    system("mysql -h ".escapeshellarg($db_host)." -u ".escapeshellarg($_config['db_user'])." -p".escapeshellarg($_config['db_pass'])." ".escapeshellarg($db_name). " < ".$bpcfile);
+    system("mysql -h ".escapeshellarg($db_host)." -u ".escapeshellarg($_config->db_username)." -p".escapeshellarg($_config->db_password)." ".escapeshellarg($db_name). " < ".$bpcfile);
     echo "Bootstrapping completed. Waiting 2mins for the tables to be unlocked.\n";
     
     while (1) {
@@ -226,7 +231,6 @@ if ($arg == "microsanity" && !empty($arg2)) {
 
 
 $t = time();
-//if($t-$_config['sanity_last']<300) {@unlink("tmp/sanity-lock");  die("The sanity cron was already run recently"); }
 
 _log("Starting sanity");
 
@@ -251,11 +255,11 @@ $total_peers = count($r);
 
 $peered = [];
 // if we have no peers, get the seed list from the official site
-if ($total_peers == 0 && $_config['testnet'] == false) {
+if ($total_peers == 0 && $_config->testnet == false) {
     $i = 0;
     echo 'No peers found. Attempting to get peers from the initial list.'.PHP_EOL;
 
-    $initialPeers = new \Steroid4\Node\InitialPeers($_config['initial_peer_list'] ?? []);
+    $initialPeers = new \Steroid4\Node\InitialPeers($_config->initial_peer_list ?? []);
 
     try {
         $peers = $initialPeers->getAll();
@@ -289,13 +293,13 @@ if ($total_peers == 0 && $_config['testnet'] == false) {
         }
         $peered[$pid] = 1;
         
-        if ($_config['passive_peering'] == true) {
+        if ($_config->passive_peering == true) {
             // does not peer, just add it to DB in passive mode
             $db->run("INSERT into peers set hostname=:hostname, ping=0, reserve=0,ip=:ip", [":hostname"=>$peer, ":ip"=>md5($peer)]);
             $res=true;
         } else {
             // forces the other node to peer with us.
-            $res = peer_post($peer."/peer.php?q=peer", ["hostname" => $_config['hostname'], "repeer" => 1]);
+            $res = peer_post($peer."/peer.php?q=peer", ["hostname" => $_config->hostname, "repeer" => 1]);
         }
         if ($res !== false) {
             $i++;
@@ -303,7 +307,7 @@ if ($total_peers == 0 && $_config['testnet'] == false) {
         } else {
             echo "Peering FAIL - $peer\n";
         }
-        if ($i > $_config['max_peers']) {
+        if ($i > $_config->max_peers) {
             break;
         }
     }
@@ -323,7 +327,7 @@ foreach ($r as $x) {
     _log("Contacting peer $x[hostname]");
     $url = $x['hostname']."/peer.php?q=";
     // get their peers list
-    if ($_config['get_more_peers']==true && $_config['passive_peering']!=true) {
+    if ($_config->get_more_peers==true && $_config->passive_peering!=true) {
         $data = peer_post($url."getPeers", [], 5);
         if ($data === false) {
             _log("Peer $x[hostname] unresponsive");
@@ -352,7 +356,7 @@ foreach ($r as $x) {
                 }
             }
             // if it's our hostname, ignore
-            if ($peer['hostname'] == $_config['hostname']) {
+            if ($peer['hostname'] == $_config->hostname) {
                 continue;
             }
             // if invalid hostname, ignore
@@ -366,18 +370,18 @@ foreach ($r as $x) {
             )) {
                 $i++;
                 // check a max_test_peers number of peers from each peer
-                if ($i > $_config['max_test_peers']) {
+                if ($i > $_config->max_test_peers) {
                     break;
                 }
                 $peer['hostname'] = filter_var($peer['hostname'], FILTER_SANITIZE_URL);
                 // peer with each one
                 _log("Trying to peer with recommended peer: $peer[hostname]");
-                $test = peer_post($peer['hostname']."/peer.php?q=peer", ["hostname" => $_config['hostname']], 5);
+                $test = peer_post($peer['hostname']."/peer.php?q=peer", ["hostname" => $_config->hostname], 5);
                 if ($test !== false) {
                     $total_peers++;
                     echo "Peered with: $peer[hostname]\n";
                     // a single new peer per sanity
-                    $_config['get_more_peers']=false;
+                    $_config->get_more_peers=false;
                 }
             }
         }
@@ -623,7 +627,7 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
     if ($block_parse_failed==true||$argv[1]=="resync") {
         $last_resync=$db->single("SELECT val FROM config WHERE cfg='last_resync'");
         if ($last_resync<time()-(3600*24)||$argv[1]=="resync") {
-            if ((($current['date']<time()-(3600*72)) && $_config['auto_resync']!==false) || $argv[1]=="resync") {
+            if ((($current['date']<time()-(3600*72)) && $_config->auto_resync!==false) || $argv[1]=="resync") {
                 $db->run("SET foreign_key_checks=0;");
                 $tables = ["accounts", "transactions", "mempool", "masternode","blocks"];
                 foreach ($tables as $table) {
@@ -674,7 +678,7 @@ $db->run("DELETE FROM `mempool` WHERE `date` < UNIX_TIMESTAMP()-(3600*24*14)");
 
 
 //rebroadcasting local transactions
-if ($_config['sanity_rebroadcast_locals'] == true && $_config['disable_repropagation'] == false) {
+if ($_config->sanity_rebroadcast_locals == true && $_config->disable_repropagation == false) {
     $r = $db->run(
         "SELECT id FROM mempool WHERE height<:current and peer='local' order by `height` asc LIMIT 20",
         [":current" => $current['height']]
@@ -691,8 +695,8 @@ if ($_config['sanity_rebroadcast_locals'] == true && $_config['disable_repropaga
 }
 
 //rebroadcasting transactions
-if ($_config['disable_repropagation'] == false) {
-    $forgotten = $current['height'] - $_config['sanity_rebroadcast_height'];
+if ($_config->disable_repropagation == false) {
+    $forgotten = $current['height'] - $_config->sanity_rebroadcast_height;
     $r1 = $db->run(
         "SELECT id FROM mempool WHERE height<:forgotten ORDER by val DESC LIMIT 10",
         [":forgotten" => $forgotten]
@@ -715,13 +719,13 @@ if ($_config['disable_repropagation'] == false) {
 }
 
 //add new peers if there aren't enough active
-if ($total_peers < $_config['max_peers'] * 0.7) {
-    $res = $_config['max_peers'] - $total_peers;
+if ($total_peers < $_config->max_peers * 0.7) {
+    $res = $_config->max_peers - $total_peers;
     $db->run("UPDATE peers SET reserve=0 WHERE reserve=1 AND blacklisted<UNIX_TIMESTAMP() LIMIT $res");
 }
 
 //random peer check
-$r = $db->run("SELECT * FROM peers WHERE blacklisted<UNIX_TIMESTAMP() and reserve=1 LIMIT :limit", [":limit"=>intval($_config['max_test_peers'])]);
+$r = $db->run("SELECT * FROM peers WHERE blacklisted<UNIX_TIMESTAMP() and reserve=1 LIMIT :limit", [":limit"=>intval($_config->max_test_peers)]);
 foreach ($r as $x) {
     $url = $x['hostname']."/peer.php?q=";
     $data = peer_post($url."ping", [], 5);
@@ -740,11 +744,11 @@ foreach ($r as $x) {
 
 
 //recheck the last blocks
-if ($_config['sanity_recheck_blocks'] > 0 && $_config['testnet'] == false) {
+if ($_config->sanity_recheck_blocks > 0 && $_config->testnet == false) {
     _log("Rechecking blocks");
     $blocks = [];
     $all_blocks_ok = true;
-    $start = $current['height'] - $_config['sanity_recheck_blocks'];
+    $start = $current['height'] - $_config->sanity_recheck_blocks;
     if ($start < 2) {
         $start = 2;
     }
@@ -798,7 +802,7 @@ if (rand(0, 10)==1) {
     }
 }
 
-if ($_config['masternode']==true&&!empty($_config['masternode_public_key'])&&!empty($_config['masternode_voting_public_key'])&&!empty($_config['masternode_voting_private_key'])) {
+if ($_config->masternode==true&&!empty($_config->masternode_public_key)&&!empty($_config->masternode_voting_public_key)&&!empty($_config->masternode_voting_private_key)) {
     echo "Masternode votes\n";
     $r=$db->run("SELECT * FROM masternode WHERE status=1 ORDER by RAND() LIMIT 3");
     foreach ($r as $x) {
@@ -826,14 +830,14 @@ if ($_config['masternode']==true&&!empty($_config['masternode_public_key'])&&!em
             $version=106;
             $msg=san($x['public_key']);
             $address=$acc->get_address($x['public_key']);
-            $public_key=$_config['masternode_public_key'];
-            $private_key=$_config['masternode_voting_private_key'];
+            $public_key=$_config->masternode_public_key;
+            $private_key=$_config->masternode_voting_private_key;
             $info=$val."-".$fee."-".$address."-".$msg."-$version-".$public_key."-".$date;
             $signature=ec_sign($info, $private_key);
     
 
             $transaction = [
-                "src"        => $acc->get_address($_config['masternode_public_key']),
+                "src"        => $acc->get_address($_config->masternode_public_key),
                 "val"        => $val,
                 "fee"        => $fee,
                 "dst"        => $address,
