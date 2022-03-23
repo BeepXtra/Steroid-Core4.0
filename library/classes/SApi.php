@@ -371,7 +371,7 @@ class SApi {
         $height = san($height);
         $max = intval($max);
         $min = intval($min);
-        
+
 
         $blk = $db->single("SELECT id FROM blocks WHERE height=:h", [":h" => $height]);
         if ($blk === false) {
@@ -385,16 +385,36 @@ class SApi {
         $res = mt_rand($min, $max);
         return json_encode(api_echo($res));
     }
-    
-    public function checksignature($request){
+
+    public function checksignature($request) {
         $pubkey = $request->url_elements[2];
         $sign = $request->url_elements[3];
         $data = $request->url_elements[4];
-        if(ec_verify($data, $sign, $pubkey)){
+        if (ec_verify($data, $sign, $pubkey)) {
             return api_echo('true');
         } else {
             return api_err('false');
         }
+    }
+
+    public function checkaddress($address, $pubkey = null) {
+        
+        
+        
+        if (!$this->swallet->valid($address)) {
+            api_err(false);
+        }
+
+        $dst_b = base58_decode($address);
+        if (strlen($dst_b) != 64) {
+            return api_err(false);
+        }
+        if (!empty($pubkey)) {
+            if ($this->swallet->get_address($pubkey) != $address) {
+                return api_err(false);
+            }
+        }
+        return api_echo(true);
     }
 
     public function test($public_key) {
