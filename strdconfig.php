@@ -4,9 +4,9 @@ class strdconfig {
 
     //Database configuration
     public $db_hostname = 'localhost';
-    public $db_username = 'testnet';
-    public $db_password = '1QHUGrl7mCQ33uSg';
-    public $strd_database = 'testnet';
+    public $db_username = 'global';
+    public $db_password = 'WwaHf8hYJrxwXxR9';
+    public $strd_database = 'S4QL';
     public $debug = 1;
     public $root_folder = '';
     //The time a session should be left alive (In seconds)
