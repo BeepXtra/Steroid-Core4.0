@@ -104,12 +104,19 @@ class ApiController extends AbstractController {
                     $currentblock = $this->sapi->sblock->current();
                     $this->sapi->swallet->add($request->url_elements[2], $currentblock['id']);
                     $data = $this->success('Storing wallet attempted - check to verify');
+                } elseif($request->url_elements[1] == 'checkaddress'){ 
+                    $data = $this->sapi->checkaddress($request->url_elements[2]);
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
                 }
                 break;
             case 4:
-                $data = $this->error('Incomplete request. Please check documentation', 2);
+                 if($request->url_elements[1] == 'checkaddress'){ 
+                    $data = $this->sapi->checkaddress($request->url_elements[2],$request->url_elements[3]);
+                } else {
+                    $data = $this->error('Incomplete request. Please check documentation', 2);
+                }
+                
                 break;
             case 5:
                 if($request->url_elements[1] == 'checksignature'){
