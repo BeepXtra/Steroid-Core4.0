@@ -248,9 +248,9 @@ class SApi {
         }
 
 
-        if ($fee > 10 && $current['height'] > 10800) {
-            $fee = 10; //10800
-        }
+        //if ($fee > 10 && $current['height'] > 10800) {
+        //    $fee = 10; //10800
+        //}
         if ($val < 0) {
             return api_err("Invalid value");
         }
