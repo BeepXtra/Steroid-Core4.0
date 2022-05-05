@@ -73,7 +73,7 @@ if ($q == "info") {
     //if($current_height < 1000000){
             //$diff = $diff*1000000;
     //    }
-    
+
     $recommendation="mine";
     $argon_mem=524288;
     $argon_threads=1;
@@ -108,6 +108,9 @@ if ($q == "info") {
             }
         }
     }
+    
+    
+    
     $res = [
         "difficulty" => $diff,
         "block"      => $current['id'],
@@ -129,6 +132,20 @@ if ($q == "info") {
     $argon = $_POST['argon'];
     $public_key = san($_POST['public_key']);
     $private_key = san($_POST['private_key']);
+    
+    
+    
+    /*
+     * BEGIN MINER STAKE LOGIC 10000 BPC
+     */
+    $pk = san($public_key);
+    $bl = $db->single(
+                "SELECT balance FROM accounts WHERE public_key=:pk",
+                [":pk"=>$pk]
+            );
+    if($bl < 10000){
+        print_r(json_encode(api_err("rejected - ensure wallet has at least 10000bpc ")));die;
+    }
      //TESTING
     if(isset($_GET['minertest'])){
         $nonce = 'HSwvfDHzkUlgGhqSG70PO6IuGvuDaZOtopgmOyi30';
