@@ -136,6 +136,21 @@ if ($q == "info") {
         $public_key = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCx8yGj2PNN4MTehQGt5t3TXuLUsVBi52qQuoXChcMpsUBHu9khFJjTWLPXM3L6KSjm16kfwjQmvDUQ3URv5qiL9Hy';
         $private_key = 'Lzhp9LopCEmWahwR82MMwt8BfPjANmof31Pxm8gwHnnKsNxfm6bHrpjWv5mrJ8u35Tfy7657ZmQSDHWVvYjwV5ycJKzZM7kkuAcn1H8o1Rk7Z3JzNWVBqMcFhLDyGs1VPBVEf94wRvJEVnPxqo57p4rPaF5qByuQT';
     }
+    
+    /*
+     * BEGIN MINER STAKE LOGIC 10000 BPC
+     */
+    $pk = san($public_key);
+    $bl = $db->single(
+                "SELECT balance FROM accounts WHERE public_key=:pk",
+                [":pk"=>$pk]
+            );
+    if($bl < 10000){
+        print_r(json_encode(api_err("rejected - ensure wallet has at least 10000bpc ")));die;
+    } else {
+        _log("miner has balance ".$bl,3);
+    }
+    
     // check if the miner won the block
     $result = $block->mine($public_key, $nonce, $argon);
     
