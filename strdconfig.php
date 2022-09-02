@@ -4,8 +4,8 @@ class strdconfig {
 
     //Database configuration
     public $db_hostname = 'localhost';
-    public $db_username = 'global';
-    public $db_password = 'WwaHf8hYJrxwXxR9';
+    public $db_username = 'dbuser';
+    public $db_password = 'dbpass';
     public $strd_database = 'S4QL';
     public $debug = 1;
     public $root_folder = '';
