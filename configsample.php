@@ -28,10 +28,10 @@ class strdconfig {
     // Hosts that are allowed to mine on this node
     public $allowed_hosts = [
         '127.0.0.1',
-        'IP',
-        'IP',
-        'IP',
-        'IP',
+        '139.162.179.250',
+        '139.162.212.101',
+        '172.104.134.29',
+        '62.228.227.198',
         '*'
     ];
     // Disable transactions and block repropagation
