@@ -148,7 +148,7 @@ if ($q == "info") {
                 [":pk"=>$pk]
             );
     if($bl < 10000){
-        _log("Not enough stake in ".$public_key." : ".$bl,3);
+        _log("Not enough stake in ".$_POST['public_key']." : ".$bl,3);
         print_r(json_encode(api_err("rejected - ensure wallet has at least 10000bpc ")));die;
     } else {
         _log("miner has balance ".$bl,3);
