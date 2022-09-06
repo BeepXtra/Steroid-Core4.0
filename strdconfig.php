@@ -7,6 +7,7 @@ class strdconfig {
     public $db_username = 'testnet';
     public $db_password = '1QHUGrl7mCQ33uSg';
     public $strd_database = 'testnet';
+    public $dbversion = 0;
     public $debug = 1;
     public $root_folder = '';
     //The time a session should be left alive (In seconds)
