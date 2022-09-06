@@ -3,7 +3,11 @@
 The Steroid4.0 (BPC) masternode.
 
 ## Install
+### script install
 
+
+
+### Manual Install
 **Hardware Requirements:**
 ```
 2GB RAM
