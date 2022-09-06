@@ -24,22 +24,25 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 OR OTHER DEALINGS IN THE SOFTWARE.
 */
 define('_SECURED', 1);
+
 const SANITY_LOCK_PATH = __DIR__.'/tmp/sanity-lock';
 
 set_time_limit(0);
-error_reporting(0);
+//error_reporting(0);
 
 // make sure it's not accessible in the browser
 if (php_sapi_name() !== 'cli') {
     die("This should only be run as cli");
 }
-include('../library/classes/SCore.php');
+
+include('library/classes/SCore.php');
 $platform = new SCore();
+
 //parse configuration
 $_config = $platform->config;
 //initialize database library
 $db = $platform->db;
-require_once '../library/includes/init.inc.php';
+require_once 'library/includes/init.inc.php';
 
 // make sure there's only a single sanity process running at the same time
 if (file_exists(SANITY_LOCK_PATH)) {
@@ -86,9 +89,9 @@ if ($_config->dbversion < 2) {
 }
 
 ini_set('memory_limit', '2G');
-require_once '../library/classes/SBlock.php';
-require_once '../library/classes/SWallet.php';
-require_once '../library/classes/STx.php';
+require_once 'library/classes/SBlock.php';
+require_once 'library/classes/SWallet.php';
+require_once 'library/classes/STx.php';
 $block = new SBlock();
 $acc = new SWallet();
 $trx= new STx();
