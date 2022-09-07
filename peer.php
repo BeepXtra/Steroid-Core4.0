@@ -45,7 +45,7 @@ $q = $_GET['q'];
 // the data is sent as json, in $_POST['data']
 if (!empty($_POST['data'])) {
     $data = json_decode(trim($_POST['data']), true);
-}
+} 
 
 // make sure it's the same coin and not testnet
 if ($_POST['coin'] != $_config->coin) {
@@ -270,6 +270,9 @@ elseif ($q == "currentBlock") {
     print_r(json_encode(api_echo($current)));die;
 } // return a specific block, used in syncing
 elseif ($q == "getBlock") {
+    if(!$data['height']){
+        $data['height'] = $_GET['height'];
+    }
     $height = intval($data['height']);
     $export = $block->export("", $height);
     if (!$export) {
