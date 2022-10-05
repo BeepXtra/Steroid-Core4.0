@@ -13,14 +13,19 @@ class SCore {
     public $lang;
     public $textRTL;
     public $deviceType;
+    public $pool_config;
 
     function __construct() {
+        global $pool_config;
         //If the file is called from the index.php of the global site
         if (file_exists('strdconfig.php')) {
             include_once('strdconfig.php');
-        } else {
+        } elseif(file_exists('../strdconfig.php')) {
             //If it is called from a subdirectory (e.g. /mine/ ). 
             include_once('../strdconfig.php');
+        } else {
+            //if it is called from pool
+            include_once($pool_config['node_path'].'/strdconfig.php');
         }
 
         $this->config = new strdconfig();
