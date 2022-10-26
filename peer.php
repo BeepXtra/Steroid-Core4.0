@@ -48,10 +48,15 @@ $q = $_GET['q'];
 
 if (!empty(file_get_contents('php://input'))) {
     $json = file_get_contents('php://input');
-    $data = json_decode(trim($json,'data='), true);
+    $json = trim(urldecode($json),'data=');
+    _log("Peer url: {$q}") ;
+    _log("Peer file: {$json}") ;
+      _log("Peer decode: {$json}") ;
+    $data = json_decode($json,true);
     
+   
 }
-
+die;
 // make sure it's the same coin and not testnet
 
 $ip = san_ip($_SERVER['REMOTE_ADDR']);

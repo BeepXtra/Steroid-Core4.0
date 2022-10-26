@@ -259,30 +259,38 @@ function isValidURL($url)
 function peer_post($url, $data = [], $timeout = 60, $debug = false)
 {
     global $_config;
-    if ($debug) {
+   if ($debug) {
        _log("Peer post: {$url}") ;
+     
     }
     if (!isValidURL($url)) {
         return false;
     }
+      if ($debug) {
+     //  _log("Peer data: {$data}") ;
+     
+    }
     
+    $data['coin']= $_config->coin;
     $postdata = http_build_query(
         [
-            'data' => json_encode($data),
-            "coin" => $_config->coin,
+            'data' => $data
         ]
     );
-
+   if ($debug) {
+       _log("Peer post_data: {$postdata}") ;
+     
+    }
     $opts = [
         'http' =>
             [
                 'timeout' => $timeout,
                 'method'  => 'POST',
                 'header'  => 'Content-type: application/x-www-form-urlencoded',
-                'content' => $postdata,
+                'content' => json_encode($postdata),
             ],
     ];
-print_r($url);
+  
     $context = stream_context_create($opts);
 
     $result = file_get_contents($url, false, $context);
@@ -291,12 +299,12 @@ print_r($url);
         _log("Peer response: {$result}");
     }
     $res = json_decode($result, true);
-echo '=========>test';print_r($res);
+ 
     // the function will return false if something goes wrong
     if ($res['status'] != "ok" || $res['coin'] != $_config->coin) {
         return false;
     }
-    echo 'HELLO';
+ 
     return $res['data'];
 }
 
