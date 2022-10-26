@@ -9,12 +9,12 @@ final class InitialPeers
 {
     public const MINIMUM_PEERS_REQUIRED = 1;
     public const PRELOAD_ERROR = 'Unable to retrieve peers from the preload list.';
-    public const PRELOAD_LIST = 'http://peer1.steroid.io';
+    public const PRELOAD_LIST = 'https://peer2.steroid.io';
 
     /**
      * @var array
      */
-    private $peerList = ['http://peer1.steroid.io'];
+    private $peerList = ['https://peer2.steroid.io'];
 
     /**
      * InitialPeers constructor.
