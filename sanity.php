@@ -298,6 +298,7 @@ if ($total_peers == 0 && $_config->testnet == false) {
         
         if ($_config->passive_peering == true) {
             // does not peer, just add it to DB in passive mode
+            $check = $db->single('QUERY');
             $db->run("INSERT into peers set hostname=:hostname, ping=0, reserve=0,ip=:ip", [":hostname"=>$peer, ":ip"=>md5($peer)]);
             $res=true;
         } else {
