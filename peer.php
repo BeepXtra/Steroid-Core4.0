@@ -26,6 +26,7 @@ OR OTHER DEALINGS IN THE SOFTWARE.
 
 define('_SECURED', 1);
 
+
 /**
  * Load the Core Library
  */
@@ -42,21 +43,25 @@ header('Content-Type: application/json');
 $trx = new STx();
 $block = new SBlock();
 $q = $_GET['q'];
+
 // the data is sent as json, in $_POST['data']
-if (!empty($_POST['data'])) {
-    $data = json_decode(trim($_POST['data']), true);
-} 
+
+if (!empty(file_get_contents('php://input'))) {
+    $json = file_get_contents('php://input');
+    $data = json_decode(trim($json,'data='), true);
+    
+}
 
 // make sure it's the same coin and not testnet
-if ($_POST['coin'] != $_config->coin) {
-    //print_r(json_encode(api_err("Invalid coin")));die;
 
-}
 $ip = san_ip($_SERVER['REMOTE_ADDR']);
 $ip = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
 
 // peer with the current node
 if ($q == "peer") {
+    if ($data['coin'] != $_config->coin) {
+    print_r(json_encode(api_err("Invalid coin")));die;
+}
     // sanitize the hostname
     $hostname = filter_var($data['hostname'], FILTER_SANITIZE_URL);
 
@@ -110,6 +115,9 @@ if ($q == "peer") {
     // confirm peer is active
     print_r(json_encode(api_echo("pong")));die;
 } elseif ($q == "submitTransaction") {
+    if ($data['coin'] != $_config->coin) {
+    print_r(json_encode(api_err("Invalid coin")));die;
+}
     // receive a new transaction from a peer
     $current = $block->current();
 
@@ -171,6 +179,9 @@ if ($q == "peer") {
     }
     print_r(json_encode(api_echo("transaction-ok")));die;
 } elseif ($q == "submitBlock") {
+    if ($data['coin'] != $_config->coin) {
+    print_r(json_encode(api_err("Invalid coin")));die;
+}
     // receive a  new block from a peer
 
     // if sanity sync, refuse all
@@ -270,9 +281,6 @@ elseif ($q == "currentBlock") {
     print_r(json_encode(api_echo($current)));die;
 } // return a specific block, used in syncing
 elseif ($q == "getBlock") {
-    if(!$data['height']){
-        $data['height'] = $_GET['height'];
-    }
     $height = intval($data['height']);
     $export = $block->export("", $height);
     if (!$export) {
