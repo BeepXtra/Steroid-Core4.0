@@ -174,6 +174,20 @@ if ($q == "info") {
         }
     } else {
         _log("Miner failed to verify argon ".$argon, 3);
+        $current = $block->current();
+        $current_id = $current['id'];
+        $difficulty = $current['difficulty'];
+        
+        $base = $public_key . '-' . $nonce . '-' . $current_id . '-' . $difficulty;
+        //_log("Base " . $base." Argon:".$argon, 3);
+        // check argon's hash validity
+        if (!password_verify($base, $argon)){ 
+            _log("NOT ".$base." / ".$argon, 3);
+        } else {
+            _log("YES ".$base." / ".$argon, 3);
+        }
+        
+        
         print_r(json_encode(api_err("rejected")));
     }
     
