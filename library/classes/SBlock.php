@@ -92,6 +92,7 @@ class SBlock {
             if ($votes['endless10reward'] == 1 && $reward < 10) {
                 $reward = 10;
             }
+            $mn_reward = 1;
         }
 
 
@@ -1378,6 +1379,7 @@ class SBlock {
 
     // exports the block data, to be used when submitting to other peers
     public function export($id = "", $height = "") {
+        _log("Peer getBlock height=".$height);
         if (empty($id) && empty($height)) {
             return false;
         }
