@@ -68,15 +68,15 @@ if (file_exists(SANITY_LOCK_PATH)) {
 // set the new sanity lock
 $lock = fopen(SANITY_LOCK_PATH, "w");
 fclose($lock);
-$arg = trim($argv[1]);
-$arg2 = trim($argv[2]);
+isset($argv[1]) ? $arg = trim($argv[1]) : $arg = '';
+isset($argv[2]) ? $arg2 = trim($argv[2]) : $arg2 = '';
 echo "Sleeping for 3 seconds\n";
 // sleep for 3 seconds to make sure there's a delay between starting the sanity and other processes
 if ($arg != "microsanity") {
     sleep(3);
 }
 
-if ($argv[1]=="dev") {
+if ($arg=="dev") {
     error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE);
     ini_set("display_errors", "on");
 }
@@ -408,7 +408,8 @@ foreach ($r as $x) {
     }
     $data['id'] = san($data['id']);
     $data['height'] = san($data['height']);
-
+    
+    
     if ($data['height'] < $current['height'] - 500) {
         $db->run(
             "UPDATE peers SET stuckfail=stuckfail+1, blacklisted=UNIX_TIMESTAMP()+7200 WHERE id=:id",
@@ -420,11 +421,14 @@ foreach ($r as $x) {
             $db->run("UPDATE peers SET stuckfail=0 WHERE id=:id", [":id" => $x['id']]);
         }
     }
+    
     $total_active_peers++;
     // add the hostname and block relationship to an array
     $block_peers[$data['id']][] = $x['hostname'];
     // count the number of peers with this block id
+    !isset($blocks_count[$data['id']]) ? $blocks_count[$data['id']] = 0 : '';
     $blocks_count[$data['id']]++;
+    
     // keep block data for this block id
     $blocks[$data['id']] = $data;
     // set the most common block on all peers
@@ -433,6 +437,7 @@ foreach ($r as $x) {
         $most_common_size = $blocks_count[$data['id']];
     }
     // set the largest height block
+    $largest_height = $current['height'];
     if ($data['height'] > $largest_height) {
         $largest_height = $data['height'];
         $largest_height_block = $data['id'];
@@ -464,12 +469,14 @@ foreach ($r as $x) {
 echo "Most common: $most_common\n";
 echo "Most common block: $most_common_size\n";
 echo "Max height: $largest_height\n";
-echo "Current block: $current[height]\n";
+echo "Current block: ".$current['height']."\n";
 $block_parse_failed=false;
 
 $failed_syncs=0;
 // if we're not on the largest height
+
 if ($current['height'] < $largest_height && $largest_height > 1) {
+    _log('========>Syncing block height '.$current['height']);
     // start  sanity sync / block all other transactions/blocks
     $db->run("UPDATE config SET val=1 WHERE cfg='sanity_sync'");
     sleep(10);
@@ -483,8 +490,9 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
         $url = $host."/peer.php?q=";
         $data = peer_post($url."getBlock", ["height" => $current['height']], 60);
         // invalid data
+        echo '====>';print_r($data);
         if ($data === false) {
-            _log("Could not get block from $host - $current[height]");
+            _log("Could not get block from $host - {$current['height']}");
             continue;
         }
         $data['id'] = san($data['id']);
@@ -495,9 +503,9 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
             $block->delete($current['height'] - 3);
             $current = $block->current();
             $data = peer_post($url."getBlock", ["height" => $current['height']]);
-
+            echo '====>';print_r($data);
             if ($data === false) {
-                _log("Could not get block from $host - $current[height]");
+                _log("Could not get block from $host - {$current['height']}");
                 break;
             }
         } elseif ($data['id'] != $current['id'] && $data['id'] != $most_common) {
@@ -578,7 +586,7 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
             $data = peer_post($url."getBlocks", ["height" => $current['height'] + 1]);
 
             if ($data === false) {
-                _log("Could not get blocks from $host - height: $current[height]");
+                _log("Could not get blocks from $host - height: {$current['height']}");
                 break;
             }
             $good_peer = true;
