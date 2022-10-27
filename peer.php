@@ -48,8 +48,14 @@ $q = $_GET['q'];
 
 if (!empty(file_get_contents('php://input'))) {
     $json = file_get_contents('php://input');
-    _log("PHP INPUT DATA POST ".$json);
-    $data = json_decode(trim($json,'data='), true);
+       _log("Peer get_contents: {$json}") ;
+    $json = trim(urldecode($json),'data=');
+    _log("Peer url: {$q}") ;
+    _log("Peer file: {$json}") ;
+   
+    $data = json_decode($json,true);
+    _log("Peer decode: {$data}") ;
+   
 }
 
 // make sure it's the same coin and not testnet
@@ -282,7 +288,6 @@ elseif ($q == "currentBlock") {
 } // return a specific block, used in syncing
 elseif ($q == "getBlock") {
     $height = intval($data['height']);
-    _log('peer retrieving block '.$data['height']);
     $export = $block->export("", $height);
     if (!$export) {
         print_r(json_encode(api_err("invalid-block")));die;
