@@ -259,7 +259,7 @@ function isValidURL($url)
 function peer_post($url, $data = [], $timeout = 60, $debug = false)
 {
     global $_config;
-    if ($debug) {
+   if ($debug) {
        _log("Peer post: {$url}") ;
      
     }
@@ -279,7 +279,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
     );
    if ($debug) {
        _log("Peer post_data: {$postdata}") ;
-
+     
     }
     $opts = [
         'http' =>
@@ -290,7 +290,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
                 'content' => $postdata,
             ],
     ];
-
+  
     $context = stream_context_create($opts);
 
     $result = file_get_contents($url, false, $context);
@@ -299,7 +299,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
         _log("Peer response: {$result}");
     }
     $res = json_decode($result, true);
-
+ 
     // the function will return false if something goes wrong
     if ($res['status'] != "ok" || $res['coin'] != $_config->coin) {
         return false;
