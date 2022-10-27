@@ -274,7 +274,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
     $data['coin']= $_config->coin;
     $postdata = http_build_query(
         [
-            'data' => $data
+            'data' => json_encode($data)
         ]
     );
    if ($debug) {
@@ -287,7 +287,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
                 'timeout' => $timeout,
                 'method'  => 'POST',
                 'header'  => 'Content-type: application/x-www-form-urlencoded',
-                'content' => json_encode($postdata),
+                'content' => $postdata,
             ],
     ];
   

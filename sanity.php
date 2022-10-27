@@ -152,7 +152,7 @@ if ($arg == "microsanity" && !empty($arg2)) {
         }
         $url = $x['hostname'] . "/peer.php?q=";
         $data = peer_post($url . "getBlock", ["height" => $current['height']]);
-        print_r($data);
+
         if (!$data) {
             echo "Invalid getBlock result\n";
             break;
@@ -433,6 +433,7 @@ foreach ($r as $x) {
     }
     // set the largest height block
     $largest_height = $current['height'];
+    $largest_height_block = $data['id'];
     if ($data['height'] > $largest_height) {
         $largest_height = $data['height'];
         $largest_height_block = $data['id'];
@@ -499,8 +500,7 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
             $block->delete($current['height'] - 3);
             $current = $block->current();
             $data = peer_post($url . "getBlock", ["height" => $current['height']]);
-            echo '====>';
-            print_r($data);
+
             if ($data === false) {
                 _log("Could not get block from $host - {$current['height']}");
                 break;
