@@ -101,18 +101,18 @@ $current = $block->current();
 // bootstrapping the initial sync
 if ($current['height'] == 1) {
     echo "Bootstrapping!\n";
-    $db_name = substr($_config->db_connect, strrpos($_config->db_connect, "dbname=") + 7);
-    $db_host = substr($_config->db_connect, strpos($_config->db_connect, ":host=") + 6);
-    $db_host = substr($db_host, 0, strpos($db_host, ";"));
+    $db_name = $_config->strd_database;
+    $db_host = $_config->db_hostname;
+    
 
     echo "DB name: $db_name\n";
     echo "DB host: $db_host\n";
     echo "Downloading the blockchain dump from steroid4.info\n";
     $bpcfile = __DIR__ . '/tmp/bpc.sql';
     if (file_exists("/usr/bin/curl")) {
-        system("/usr/bin/curl -o $bpcfile 'https://www.steroid.io/dump/bpc.sql'", $ret);
+        system("/usr/bin/curl -o $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
     } elseif (file_exists("/usr/bin/wget")) {
-        system("/usr/bin/wget -O $bpcfile 'https://www.steroid.io/dump/bpc.sql'", $ret);
+        system("/usr/bin/wget -O $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
     } else {
         die("/usr/bin/curl and /usr/bin/wget not installed or inaccessible. Please install either of them.");
     }
@@ -486,8 +486,7 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
         $url = $host . "/peer.php?q=";
         $data = peer_post($url . "getBlock", ["height" => $current['height']], 60, 1);
         // invalid data
-        echo '====>';
-        print_r($data);
+        
         if ($data === false) {
             _log("Could not get block from $host - {$current['height']}");
             continue;
