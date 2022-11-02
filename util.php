@@ -129,7 +129,7 @@ elseif ($cmd == 'block-time') {
  * @apiParam {text} arg2 The Hostname of the other node
  *
  * @apiExample {cli} Example usage:
- * php util.php peer http://peer1.arionum.com
+ * php util.php peer https://peer1.steroid.io
  *
  * @apiSuccessExample {text} Success-Response:
  * Peering OK

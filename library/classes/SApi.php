@@ -398,9 +398,9 @@ class SApi {
     }
 
     public function checkaddress($address, $pubkey = null) {
-        
-        
-        
+
+
+
         if (!$this->swallet->valid($address)) {
             api_err(false);
         }
@@ -415,6 +415,91 @@ class SApi {
             }
         }
         return api_echo(true);
+    }
+
+    public function sanity() {
+        global $db;
+        $sanity = file_exists(__DIR__ . '/tmp/sanity-lock');
+        $lastSanity = (int) $db->single("SELECT val FROM config WHERE cfg='sanity_last'");
+        $sanitySync = (bool) $db->single("SELECT val FROM config WHERE cfg='sanity_sync'");
+        return api_echo(['sanity_running' => $sanity, 'last_sanity' => $lastSanity, 'sanity_sync' => $sanitySync]);
+    }
+
+    public function nodeinfo() {
+        global $db, $_config;
+        //strd db version
+        $dbVersion = $db->single("SELECT val FROM config WHERE cfg='dbversion'");
+        //peer hostname
+        $hostname = $db->single("SELECT val FROM config WHERE cfg='hostname'");
+        //number of active wallets
+        $acc = $db->single("SELECT COUNT(1) FROM accounts");
+        //number of transactions recorded
+        $tr = $db->single("SELECT COUNT(1) FROM transactions");
+        //count masternodes
+        $masternodes = $db->single("SELECT COUNT(1) FROM masternode");
+        //txs in mempool
+        $mempool = $db->single("SELECT COUNT(1) FROM mempool");
+        //count peers
+        $peers = $db->single("SELECT COUNT(1) FROM peers WHERE blacklisted<UNIX_TIMESTAMP()");
+        //current block height
+        $blockheight = $db->single("SELECT height FROM blocks ORDER BY height DESC limit 1");
+        //Passive peering active
+        $passive_peer = $_config->passive_peering;
+        //Masternode Public Key
+        $public_key = $_config->masternode_public_key;
+        //Node OS Distribution
+        $system = parse_ini_string(shell_exec('cat /etc/lsb-release'))['DISTRIB_DESCRIPTION'];
+        //Free disk space
+        $disk = $this->format_bytes(disk_free_space("."));
+        //Ram usage
+        $memory = $this->getSystemMemInfo();
+        //Web-server type and version i.e. Nginx 1.14.2
+        $nginxVersion = $_SERVER['SERVER_SOFTWARE'];
+        //database engine version
+        $mysqlVersion = $db->single("SELECT VERSION()");
+        //current load avg
+        $load = sys_getloadavg();
+        //echo '<pre>';print_r($GLOBALS);
+        return api_echo([
+            'hostname' => $hostname,
+            'version' => VERSION,
+            'dbversion' => $dbVersion,
+            'accounts' => $acc,
+            'transactions' => $tr,
+            'mempool' => $mempool,
+            'masternodes' => $masternodes,
+            'peers' => $peers,
+            'height' => $blockheight,
+            'passive_peering' => $passive_peer,
+            'public_key' => $public_key,
+            'loadavg' => $load[0],
+            'disk_available' => $disk,
+            'memory' => $memory,
+            'system' => $system,
+            'webserver' => $nginxVersion,
+            'dbengine' => $mysqlVersion
+        ]);
+    }
+
+    private function format_bytes($bytes) {
+        $si_prefix = array('B', 'KB', 'MB', 'GB', 'TB', 'EB', 'ZB', 'YB');
+        $base = 1024;
+        $class = min((int) log($bytes, $base), count($si_prefix) - 1);
+        $formatted = sprintf('%1.2f', $bytes / pow($base, $class)) . ' ' . $si_prefix[$class];
+        return $formatted;
+    }
+
+    private function getSystemMemInfo() {
+        $data = explode("\n", file_get_contents("/proc/meminfo"));
+        $meminfo = array();
+        
+        $memdata = explode(':',$data[0]);
+        $meminfo['ram'] = trim($memdata[1]);
+        $memdata = explode(':',$data[2]);
+        $meminfo['available'] = trim($memdata[1]);
+        
+        
+        return $meminfo;
     }
 
     public function test($public_key) {
