@@ -35,7 +35,12 @@ class ApiController extends AbstractController {
                     
                 } elseif ($request->url_elements[1] == 'mempoolsize') {
                     $data = $this->sapi->mempoolsize();
+                } elseif($request->url_elements[1] == 'sanity'){
+                    $data = $this->sapi->sanity();
+                } elseif($request->url_elements[1] == 'node-info'){
+                    $data = $this->sapi->nodeinfo();
                 } elseif ($request->url_elements[1] == 'test') {
+                
                     $data = $this->sapi->test('1');
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
