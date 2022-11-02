@@ -447,6 +447,8 @@ class SApi {
         $passive_peer = $_config->passive_peering;
         //Masternode Public Key
         $public_key = $_config->masternode_public_key;
+        //PHP Version
+        $phpversion = phpversion();
         //Node OS Distribution
         $system = parse_ini_string(shell_exec('cat /etc/lsb-release'))['DISTRIB_DESCRIPTION'];
         //Free disk space
@@ -475,6 +477,7 @@ class SApi {
             'loadavg' => $load[0],
             'disk_available' => $disk,
             'memory' => $memory,
+            'php' => $phpversion,
             'system' => $system,
             'webserver' => $nginxVersion,
             'dbengine' => $mysqlVersion
