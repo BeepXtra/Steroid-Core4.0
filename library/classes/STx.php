@@ -715,7 +715,7 @@ class STx {
             }
            
         
-            if ($x['version']==100&&$x['val']!=100000) {
+            if ($x['version']==100&&$x['val']!=250000) {
                 _log("The masternode transaction is not 100k", 3);
                 return false;
             } elseif ($x['version']!=100) {
