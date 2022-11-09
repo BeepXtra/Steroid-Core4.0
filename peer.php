@@ -65,6 +65,7 @@ $ip = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLA
 
 // peer with the current node
 if ($q == "peer") {
+    _log($data);
     if ($data['coin'] != $_config->coin) {
     print_r(json_encode(api_err("Invalid coin")));die;
 }
@@ -110,7 +111,7 @@ if ($q == "peer") {
         [":ip" => $ip, ":hostname2" => $hostname, ":hostname" => $hostname, ":reserve" => $reserve]
     );
     // re-peer to make sure the peer is valid
-    $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname]);
+    $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname],5);
     _log('CHECK PEER '.$res);
     if ($res !== false) {
         print_r(json_encode(api_echo("re-peer-ok")));die;
