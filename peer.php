@@ -68,7 +68,7 @@ if(isset($_SERVER['HTTP_X_FORWARDED_FOR'])){
 
 $ip = san_ip($ip);
 $ip = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-_log('REMOTE IP:'. json_encode(($_SERVER)));
+_log('REMOTE IP:'. $ip);
 // peer with the current node
 if ($q == "peer") {
     _log($data);
