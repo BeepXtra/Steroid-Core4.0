@@ -93,7 +93,7 @@ if ($q == "peer") {
     // if it's already peered, only repeer on request
     $res = $db->single(
         "SELECT COUNT(1) FROM peers WHERE hostname=:hostname AND ip=:ip",
-        [":hostname" => $hostname, ":ip" => $ip]
+        [":hostname" => $hostname, ":ip" => md5($ip)]
     );
     if ($res == 1) {
         if ($data['repeer'] == 1) {
