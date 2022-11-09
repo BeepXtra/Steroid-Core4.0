@@ -111,6 +111,7 @@ if ($q == "peer") {
     );
     // re-peer to make sure the peer is valid
     $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname]);
+    _log('CHECK PEER '.$res);
     if ($res !== false) {
         print_r(json_encode(api_echo("re-peer-ok")));die;
     } else {
