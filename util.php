@@ -490,7 +490,7 @@ elseif ($cmd == 'get-address') {
         $releases=$db->single("SELECT COUNT(1) FROM transactions WHERE dst=:id AND version=103", [":id"=>$x['id']]);
 
         if ($releases>0) { //masternode releases
-            $rec+=$releases*100000;
+            $rec+=$releases*250000;
 
         }
         $spent=$db->single("SELECT SUM(val+fee) FROM transactions WHERE public_key=:pub AND version>0", [":pub"=>$x['public_key']]);
