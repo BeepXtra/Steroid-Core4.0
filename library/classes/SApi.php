@@ -275,7 +275,7 @@ class SApi {
                 if (!filter_var($message, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                     return api_err("Invalid Node IP - $message !");
                 }
-                $val = 100000;
+                $val = 250000;
             }
         }
 
@@ -353,7 +353,7 @@ class SApi {
 
         $trx->add_mempool($transaction, "local");
         $hash = escapeshellarg(san($hash));
-        //system("php propagate.php transaction $hash > /dev/null 2>&1  &");
+        system("php propagate.php transaction $hash > /dev/null 2>&1  &");
         //api_echo($hash);
         return array('txid' => $hash);
     }
