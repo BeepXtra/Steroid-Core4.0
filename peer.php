@@ -62,7 +62,7 @@ if (!empty(file_get_contents('php://input'))) {
 
 $ip = san_ip($_SERVER['REMOTE_ADDR']);
 $ip = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-
+_log('REMOTE IP:'.$ip);
 // peer with the current node
 if ($q == "peer") {
     _log($data);
