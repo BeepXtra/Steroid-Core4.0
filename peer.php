@@ -68,6 +68,7 @@ if(isset($_SERVER['HTTP_X_FORWARDED_FOR'])){
 
 $ip = san_ip($ip);
 $ip = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+$ip = md5($ip);
 _log('REMOTE IP:'. $ip);
 // peer with the current node
 if ($q == "peer") {
@@ -93,7 +94,7 @@ if ($q == "peer") {
     // if it's already peered, only repeer on request
     $res = $db->single(
         "SELECT COUNT(1) FROM peers WHERE hostname=:hostname AND ip=:ip",
-        [":hostname" => $hostname, ":ip" => md5($ip)]
+        [":hostname" => $hostname, ":ip" => $ip]
     );
     if ($res == 1) {
         if ($data['repeer'] == 1) {
