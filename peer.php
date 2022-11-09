@@ -59,10 +59,16 @@ if (!empty(file_get_contents('php://input'))) {
 }
 
 // make sure it's the same coin and not testnet
+if(isset($_SERVER['HTTP_X_FORWARDED_FOR'])){
+    $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+} else {
+    $ip = $_SERVER['REMOTE_ADDR'];
+}
 
-$ip = san_ip($_SERVER['REMOTE_ADDR']);
+
+$ip = san_ip($ip);
 $ip = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-_log('REMOTE IP:'.$ip);
+_log('REMOTE IP:'. json_encode(($_SERVER)));
 // peer with the current node
 if ($q == "peer") {
     _log($data);
