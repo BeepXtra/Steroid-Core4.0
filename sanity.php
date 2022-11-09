@@ -328,6 +328,7 @@ foreach ($r as $x) {
     // get their peers list
     if ($_config->get_more_peers == true && $_config->passive_peering != true) {
         $data = peer_post($url . "getPeers", [], 5);
+       
         if ($data === false) {
             _log("Peer $x[hostname] unresponsive");
             // if the peer is unresponsive, mark it as failed and blacklist it for a while
@@ -363,10 +364,10 @@ foreach ($r as $x) {
                 continue;
             }
             // make sure there's no peer in db with this ip or hostname
-            if (!$db->single(
+            /*if (!$db->single(
                             "SELECT COUNT(1) FROM peers WHERE ip=:ip or hostname=:hostname",
                             [":ip" => $peer['ip'], ":hostname" => $peer['hostname']]
-                    )) {
+                    )) {*/
                 $i++;
                 // check a max_test_peers number of peers from each peer
                 if ($i > $_config->max_test_peers) {
@@ -382,7 +383,7 @@ foreach ($r as $x) {
                     // a single new peer per sanity
                     $_config->get_more_peers = false;
                 }
-            }
+            //}
         }
     }
 
