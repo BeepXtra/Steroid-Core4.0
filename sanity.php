@@ -341,7 +341,7 @@ foreach ($r as $x) {
             // store the hostname as md5 hash, for easier checking
             $peer['hostname'] = san_host($peer['hostname']);
             $peer['ip'] = san_ip($peer['ip']);
-            $pid = md5($peer['hostname']);
+            $pid = md5($peer['ip']);
             // do not peer if we are already peered
             if ($peered[$pid] == 1) {
                 continue;
