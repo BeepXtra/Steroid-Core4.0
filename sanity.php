@@ -101,9 +101,8 @@ $current = $block->current();
 // bootstrapping the initial sync
 if ($current['height'] == 1) {
     echo "Bootstrapping!\n";
-    $db_name = substr($_config->db_connect, strrpos($_config->db_connect, "dbname=") + 7);
-    $db_host = substr($_config->db_connect, strpos($_config->db_connect, ":host=") + 6);
-    $db_host = substr($db_host, 0, strpos($db_host, ";"));
+    $db_name = $_config->strd_database;
+    $db_host = $_config->db_hostname;
 
     echo "DB name: $db_name\n";
     echo "DB host: $db_host\n";
