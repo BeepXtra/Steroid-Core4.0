@@ -110,9 +110,9 @@ if ($current['height'] == 1) {
     echo "Downloading the blockchain dump from steroid4.info\n";
     $bpcfile = __DIR__ . '/tmp/bpc.sql';
     if (file_exists("/usr/bin/curl")) {
-        system("/usr/bin/curl -o $bpcfile 'https://www.steroid.io/dump/bpc.sql'", $ret);
+        system("/usr/bin/curl -o $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
     } elseif (file_exists("/usr/bin/wget")) {
-        system("/usr/bin/wget -O $bpcfile 'https://www.steroid.io/dump/bpc.sql'", $ret);
+        system("/usr/bin/wget -O $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
     } else {
         die("/usr/bin/curl and /usr/bin/wget not installed or inaccessible. Please install either of them.");
     }
