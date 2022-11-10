@@ -483,6 +483,21 @@ class SApi {
             'dbengine' => $mysqlVersion
         ]);
     }
+    
+    public function masternodes($data = null) {
+        global $db;
+        $bind = [];
+        $whr = '';
+        ($data) ? $public_key = san($data['public_key']) : $public_key = null;
+        
+        if (!empty($public_key)) {
+            $whr = "WHERE public_key=:public_key";
+            $bind[':public_key'] = $public_key;
+        }
+        $res = $db->run("SELECT * FROM masternode $whr ORDER by public_key ASC", $bind);
+
+        return array(["masternodes" => $res, "hash" => md5(json_encode($res))]);
+    }
 
     private function format_bytes($bytes) {
         $si_prefix = array('B', 'KB', 'MB', 'GB', 'TB', 'EB', 'ZB', 'YB');
