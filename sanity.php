@@ -107,7 +107,7 @@ if ($current['height'] == 1) {
 
     echo "DB name: $db_name\n";
     echo "DB host: $db_host\n";
-    echo "Downloading the blockchain dump from steroid4.info\n";
+    echo "Downloading the blockchain dump from steroid.io\n";
     $bpcfile = __DIR__ . '/tmp/bpc.sql';
     if (file_exists("/usr/bin/curl")) {
         system("/usr/bin/curl -o $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
