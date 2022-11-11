@@ -453,6 +453,7 @@ class SApi {
         $system = parse_ini_string(shell_exec('cat /etc/lsb-release'))['DISTRIB_DESCRIPTION'];
         //Free disk space
         $disk = $this->format_bytes(disk_free_space("."));
+        $disktot = $this->format_bytes(disk_total_space("."));
         //Ram usage
         $memory = $this->getSystemMemInfo();
         //Web-server type and version i.e. Nginx 1.14.2
@@ -476,6 +477,7 @@ class SApi {
             'public_key' => $public_key,
             'loadavg' => $load[0],
             'disk_available' => $disk,
+            'disk_total' => $disktot,
             'memory' => $memory,
             'php' => $phpversion,
             'system' => $system,
