@@ -109,6 +109,10 @@ class strdconfig {
     function __construct() {
         $this->root_folder = dirname(__FILE__);
         
+        //Patch for nodes running cloudflare for https
+        $http_mode = explode(':',$this->hostname);
+        $_SERVER['HTTPS'] = $http_mode[0];
+        
         if(isset($_SERVER['HTTP_HOST'])){
             $servername = explode('.', $_SERVER['HTTP_HOST']);
         } else {
