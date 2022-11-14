@@ -372,7 +372,6 @@ class SApi {
         $max = intval($max);
         $min = intval($min);
 
-
         $blk = $db->single("SELECT id FROM blocks WHERE height=:h", [":h" => $height]);
         if ($blk === false) {
             return api_err("Unknown block");
@@ -476,8 +475,10 @@ class SApi {
             'passive_peering' => $passive_peer,
             'public_key' => $public_key,
             'loadavg' => $load[0],
-            'disk_available' => $disk,
-            'disk_total' => $disktot,
+            'disk' => array(
+                'available' => $disk,
+                'total' => $disktot
+            ),
             'memory' => $memory,
             'php' => $phpversion,
             'system' => $system,
@@ -485,13 +486,13 @@ class SApi {
             'dbengine' => $mysqlVersion
         ]);
     }
-    
+
     public function masternodes($data = null) {
         global $db;
         $bind = [];
         $whr = '';
         ($data) ? $public_key = san($data['public_key']) : $public_key = null;
-        
+
         if (!empty($public_key)) {
             $whr = "WHERE public_key=:public_key";
             $bind[':public_key'] = $public_key;
@@ -512,13 +513,12 @@ class SApi {
     private function getSystemMemInfo() {
         $data = explode("\n", file_get_contents("/proc/meminfo"));
         $meminfo = array();
-        
-        $memdata = explode(':',$data[0]);
-        $meminfo['ram'] = trim($memdata[1]);
-        $memdata = explode(':',$data[2]);
+
+      
+        $memdata = explode(':', $data[2]);
         $meminfo['available'] = trim($memdata[1]);
-        
-        
+  $memdata = explode(':', $data[0]);
+        $meminfo['total'] = trim($memdata[1]);
         return $meminfo;
     }
 
