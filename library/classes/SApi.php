@@ -514,12 +514,41 @@ class SApi {
         $data = explode("\n", file_get_contents("/proc/meminfo"));
         $meminfo = array();
 
-      
         $memdata = explode(':', $data[2]);
         $meminfo['available'] = trim($memdata[1]);
-  $memdata = explode(':', $data[0]);
+        $memdata = explode(':', $data[0]);
         $meminfo['total'] = trim($memdata[1]);
         return $meminfo;
+    }
+
+    public function assetbalance($data) {
+        global $db;
+
+        $data = explode(':', $data);
+
+        $asset = san($data[0]);
+        $account = san($data[1]);
+
+        if (empty($asset) && empty($account)) {
+            return api_err("An asset and an account are necessary");
+        }
+
+        if (empty($account)) {
+            return api_err("Invalid wallet provided");
+        }
+
+        $bind = [];
+
+        $bind[':asset'] = $asset;
+        $bind[':account'] = $account;
+
+        $r = $db->run("SELECT asset, alias, account, assets_balance.balance FROM assets_balance LEFT JOIN accounts ON accounts.id=assets_balance.asset WHERE asset=:asset AND account=:account", $bind);
+
+        if ($r) {
+            return api_echo($r);
+        } else {
+            return api_err("An asset or an account not found");
+        }
     }
 
     public function test($public_key) {

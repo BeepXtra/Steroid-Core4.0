@@ -110,6 +110,11 @@ class ApiController extends AbstractController {
                     $data = $this->success('Storing wallet attempted - check to verify');
                 } elseif ($request->url_elements[1] == 'checkaddress') {
                     $data = $this->sapi->checkaddress($request->url_elements[2]);
+                } elseif($request->url_elements[1] == 'assetbalance') {
+                    /*
+                     * @url /api/assetbalance/$asset_address:$wallet_address
+                     */
+                    $data = $this->sapi->assetbalance($request->url_elements[2]);
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
                 }
