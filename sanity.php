@@ -103,11 +103,10 @@ if ($current['height'] == 1) {
     echo "Bootstrapping!\n";
     $db_name = $_config->strd_database;
     $db_host = $_config->db_hostname;
-    
 
     echo "DB name: $db_name\n";
     echo "DB host: $db_host\n";
-    echo "Downloading the blockchain dump from steroid4.info\n";
+    echo "Downloading the blockchain dump from steroid.io\n";
     $bpcfile = __DIR__ . '/tmp/bpc.sql';
     if (file_exists("/usr/bin/curl")) {
         system("/usr/bin/curl -o $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
@@ -341,7 +340,7 @@ foreach ($r as $x) {
             // store the hostname as md5 hash, for easier checking
             $peer['hostname'] = san_host($peer['hostname']);
             $peer['ip'] = san_ip($peer['ip']);
-            $pid = md5($peer['hostname']);
+            $pid = md5($peer['ip']);
             // do not peer if we are already peered
             if ($peered[$pid] == 1) {
                 continue;
@@ -363,10 +362,10 @@ foreach ($r as $x) {
                 continue;
             }
             // make sure there's no peer in db with this ip or hostname
-            if (!$db->single(
+            /*if (!$db->single(
                             "SELECT COUNT(1) FROM peers WHERE ip=:ip or hostname=:hostname",
                             [":ip" => $peer['ip'], ":hostname" => $peer['hostname']]
-                    )) {
+                    )) {*/
                 $i++;
                 // check a max_test_peers number of peers from each peer
                 if ($i > $_config->max_test_peers) {
@@ -382,7 +381,8 @@ foreach ($r as $x) {
                     // a single new peer per sanity
                     $_config->get_more_peers = false;
                 }
-            }
+            //}
+
         }
     }
 
@@ -485,8 +485,6 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
         _log("Starting to sync from $host");
         $url = $host . "/peer.php?q=";
         $data = peer_post($url . "getBlock", ["height" => $current['height']], 60, 1);
-        // invalid data
-        
         if ($data === false) {
             _log("Could not get block from $host - {$current['height']}");
             continue;
