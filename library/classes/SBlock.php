@@ -1380,6 +1380,7 @@ class SBlock {
     // exports the block data, to be used when submitting to other peers
     public function export($id = "", $height = "") {
         _log("Peer getBlock height=".$height, 5);
+
         if (empty($id) && empty($height)) {
             return false;
         }
