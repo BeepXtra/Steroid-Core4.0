@@ -275,7 +275,7 @@ class SApi {
                 if (!filter_var($message, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                     return api_err("Invalid Node IP - $message !");
                 }
-                $val = 100000;
+                $val = 250000;
             }
         }
 
@@ -353,7 +353,7 @@ class SApi {
 
         $trx->add_mempool($transaction, "local");
         $hash = escapeshellarg(san($hash));
-        //system("php propagate.php transaction $hash > /dev/null 2>&1  &");
+        system("php propagate.php transaction $hash > /dev/null 2>&1  &");
         //api_echo($hash);
         return array('txid' => $hash);
     }
@@ -371,8 +371,6 @@ class SApi {
         $height = san($height);
         $max = intval($max);
         $min = intval($min);
-
-
         $blk = $db->single("SELECT id FROM blocks WHERE height=:h", [":h" => $height]);
         if ($blk === false) {
             return api_err("Unknown block");
@@ -453,6 +451,7 @@ class SApi {
         $system = parse_ini_string(shell_exec('cat /etc/lsb-release'))['DISTRIB_DESCRIPTION'];
         //Free disk space
         $disk = $this->format_bytes(disk_free_space("."));
+        $disktot = $this->format_bytes(disk_total_space("."));
         //Ram usage
         $memory = $this->getSystemMemInfo();
         //Web-server type and version i.e. Nginx 1.14.2
@@ -475,13 +474,31 @@ class SApi {
             'passive_peering' => $passive_peer,
             'public_key' => $public_key,
             'loadavg' => $load[0],
-            'disk_available' => $disk,
+            'disk' => array(
+                'available' => $disk,
+                'total' => $disktot
+            ),
             'memory' => $memory,
             'php' => $phpversion,
             'system' => $system,
             'webserver' => $nginxVersion,
             'dbengine' => $mysqlVersion
         ]);
+    }
+
+    public function masternodes($data = null) {
+        global $db;
+        $bind = [];
+        $whr = '';
+        ($data) ? $public_key = san($data['public_key']) : $public_key = null;
+
+        if (!empty($public_key)) {
+            $whr = "WHERE public_key=:public_key";
+            $bind[':public_key'] = $public_key;
+        }
+        $res = $db->run("SELECT * FROM masternode $whr ORDER by public_key ASC", $bind);
+
+        return array(["masternodes" => $res, "hash" => md5(json_encode($res))]);
     }
 
     private function format_bytes($bytes) {
@@ -495,14 +512,40 @@ class SApi {
     private function getSystemMemInfo() {
         $data = explode("\n", file_get_contents("/proc/meminfo"));
         $meminfo = array();
-        
-        $memdata = explode(':',$data[0]);
-        $meminfo['ram'] = trim($memdata[1]);
-        $memdata = explode(':',$data[2]);
+        $memdata = explode(':', $data[2]);
         $meminfo['available'] = trim($memdata[1]);
-        
-        
+        $memdata = explode(':', $data[0]);
+        $meminfo['total'] = trim($memdata[1]);
         return $meminfo;
+    }
+
+    public function assetbalance($data) {
+        global $db;
+
+        $data = explode(':', $data);
+        $asset = san($data[0]);
+        $account = san($data[1]);
+
+        if (empty($asset) && empty($account)) {
+            return api_err("An asset and an account are necessary");
+        }
+
+        if (empty($account)) {
+            return api_err("Invalid wallet provided");
+        }
+
+        $bind = [];
+
+        $bind[':asset'] = $asset;
+        $bind[':account'] = $account;
+
+        $r = $db->run("SELECT asset, alias, account, assets_balance.balance FROM assets_balance LEFT JOIN accounts ON accounts.id=assets_balance.asset WHERE asset=:asset AND account=:account", $bind);
+
+        if ($r) {
+            return api_echo($r);
+        } else {
+            return api_err("An asset or an account not found");
+        }
     }
 
     public function test($public_key) {

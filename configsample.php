@@ -48,7 +48,7 @@ class strdconfig {
     public $max_test_peers = 1;
     // The initial peers to sync from in sanity
     public $initial_peer_list = [
-        'https://peer1.steroid.io',
+        'https://galileo.steroid.io',
     ];
     // does not peer with any of the peers. Uses the seed peers and syncs only from those peers. Requires a cronjob on sanity.php
     public $passive_peering = false;
@@ -109,6 +109,16 @@ class strdconfig {
     function __construct() {
         $this->root_folder = dirname(__FILE__);
         
+
+        //Patch for nodes running cloudflare for https
+        if ($this->hostname) {
+            $http_mode = explode(':', $this->hostname);
+            $_SERVER['HTTPS'] = $http_mode[0];
+        } else {
+            $_SERVER['HTTPS'] = 'https';
+        }
+        
+
         if(isset($_SERVER['HTTP_HOST'])){
             $servername = explode('.', $_SERVER['HTTP_HOST']);
         } else {
