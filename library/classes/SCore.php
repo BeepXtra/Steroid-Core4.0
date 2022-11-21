@@ -32,6 +32,7 @@ class SCore {
         //$this->memcache = new memcache;
         $this->security = 1;
         $this->db = $this->connect_to_database();
+         
     }
 
     ////////////////////////DATABASE FUNCTIONS///////////////////

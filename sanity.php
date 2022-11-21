@@ -327,7 +327,6 @@ foreach ($r as $x) {
     // get their peers list
     if ($_config->get_more_peers == true && $_config->passive_peering != true) {
         $data = peer_post($url . "getPeers", [], 5);
-       
         if ($data === false) {
             _log("Peer $x[hostname] unresponsive");
             // if the peer is unresponsive, mark it as failed and blacklist it for a while
@@ -383,6 +382,7 @@ foreach ($r as $x) {
                     $_config->get_more_peers = false;
                 }
             //}
+
         }
     }
 
@@ -485,9 +485,6 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
         _log("Starting to sync from $host");
         $url = $host . "/peer.php?q=";
         $data = peer_post($url . "getBlock", ["height" => $current['height']], 60, 1);
-        // invalid data
-        echo '====>';
-        print_r($data);
         if ($data === false) {
             _log("Could not get block from $host - {$current['height']}");
             continue;

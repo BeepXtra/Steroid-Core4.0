@@ -41,6 +41,7 @@ class ApiController extends AbstractController {
                 } elseif ($request->url_elements[1] == 'masternodes') {
                     $data = $this->sapi->masternodes();
                 } elseif ($request->url_elements[1] == 'test') {
+                
                     $data = $this->sapi->test('1');
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
@@ -108,6 +109,7 @@ class ApiController extends AbstractController {
                     $currentblock = $this->sapi->sblock->current();
                     $this->sapi->swallet->add($request->url_elements[2], $currentblock['id']);
                     $data = $this->success('Storing wallet attempted - check to verify');
+
                 } elseif ($request->url_elements[1] == 'checkaddress') {
                     $data = $this->sapi->checkaddress($request->url_elements[2]);
                 } elseif($request->url_elements[1] == 'assetbalance') {
@@ -125,7 +127,6 @@ class ApiController extends AbstractController {
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
                 }
-
                 break;
             case 5:
                 if ($request->url_elements[1] == 'checksignature') {
@@ -164,14 +165,7 @@ class ApiController extends AbstractController {
                 break;
             case 3:
                 if ($request->url_elements[1] == 'send') {
-                    $data = $this->sapi->sendtx($request->url_elements[2]); //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
+                    $data = $this->sapi->sendtx($request->url_elements[2]);
                 }
                 break;
             default :

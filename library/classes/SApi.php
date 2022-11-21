@@ -371,7 +371,6 @@ class SApi {
         $height = san($height);
         $max = intval($max);
         $min = intval($min);
-
         $blk = $db->single("SELECT id FROM blocks WHERE height=:h", [":h" => $height]);
         if ($blk === false) {
             return api_err("Unknown block");
@@ -513,7 +512,6 @@ class SApi {
     private function getSystemMemInfo() {
         $data = explode("\n", file_get_contents("/proc/meminfo"));
         $meminfo = array();
-
         $memdata = explode(':', $data[2]);
         $meminfo['available'] = trim($memdata[1]);
         $memdata = explode(':', $data[0]);
@@ -525,7 +523,6 @@ class SApi {
         global $db;
 
         $data = explode(':', $data);
-
         $asset = san($data[0]);
         $account = san($data[1]);
 

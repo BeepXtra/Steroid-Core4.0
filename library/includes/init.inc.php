@@ -37,19 +37,11 @@ if (floatval(phpversion()) < 7.2) {
     api_err("The minimum php version required is 7.2");
 }
 
-// Getting extra configs from the database
-$query = $db->run("SELECT cfg, val FROM config");
-foreach ($query as $res) {
-    $platform->config->{$res['cfg']} = trim($res['val']);
-}
 
-// nothing is allowed while in maintenance
-if ($platform->config->maintenance == 1) {
-    api_err("under-maintenance");
-}
 
 // update the db schema, on every git pull or initial install
-if (file_exists("tmp/db-update")) {
+if (file_exists($platform->config->root_folder."/tmp/db-update")) {
+    
     //checking if the server has at least 2GB of ram
     $ram=file_get_contents("/proc/meminfo");
     $ramz=explode("MemTotal:",$ram);
@@ -66,6 +58,18 @@ if (file_exists("tmp/db-update")) {
     }
     echo "Could not access the tmp/db-update file. Please give full permissions to this file\n";
 }
+// Getting extra configs from the database
+$query = $db->run("SELECT cfg, val FROM config");
+foreach ($query as $res) {
+    $platform->config->{$res['cfg']} = trim($res['val']);
+}
+
+// nothing is allowed while in maintenance
+if ($platform->config->maintenance == 1) {
+    api_err("under-maintenance");
+}
+
+
 
 // something went wront with the db schema
 if ($platform->config->dbversion < 2) {
