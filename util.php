@@ -129,7 +129,7 @@ elseif ($cmd == 'block-time') {
  * @apiParam {text} arg2 The Hostname of the other node
  *
  * @apiExample {cli} Example usage:
- * php util.php peer http://peer1.arionum.com
+ * php util.php peer http://peer1.steroid.io
  *
  * @apiSuccessExample {text} Success-Response:
  * Peering OK
@@ -293,7 +293,7 @@ elseif ($cmd == "mempool") {
  * @apiParam {text} arg2 Peer's hostname
  *
  * @apiExample {cli} Example usage:
- * php util.php delete-peer http://peer1.arionum.com
+ * php util.php delete-peer http://peer1.steroid.io
  *
  * @apiSuccessExample {text} Success-Response:
  * Peer removed
@@ -328,7 +328,7 @@ elseif ($cmd == "delete-peer") {
  * @apiSuccessExample {text} Success-Response:
  * http://peer5.arionum.com        16849
  * ...
- * http://peer10.arionum.com        16849
+ * http://peer10.steroid.io        16849
  */
 elseif ($cmd == "peers-block") {
     $only_diff = false;
@@ -490,7 +490,7 @@ elseif ($cmd == 'get-address') {
         $releases=$db->single("SELECT COUNT(1) FROM transactions WHERE dst=:id AND version=103", [":id"=>$x['id']]);
 
         if ($releases>0) { //masternode releases
-            $rec+=$releases*100000;
+            $rec+=$releases*250000;
 
         }
         $spent=$db->single("SELECT SUM(val+fee) FROM transactions WHERE public_key=:pub AND version>0", [":pub"=>$x['public_key']]);
