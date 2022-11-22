@@ -27,7 +27,7 @@ define('_SECURED', 1);
 
 
 //Development tool
-$debug = 1;
+$debug = 0;
 if($debug){
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);

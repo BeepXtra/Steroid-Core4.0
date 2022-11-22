@@ -59,12 +59,20 @@ if (!empty(file_get_contents('php://input'))) {
 }
 
 // make sure it's the same coin and not testnet
+if(isset($_SERVER['HTTP_X_FORWARDED_FOR'])){
+    $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+} else {
+    $ip = $_SERVER['REMOTE_ADDR'];
+}
 
-$ip = san_ip($_SERVER['REMOTE_ADDR']);
+
+$ip = san_ip($ip);
 $ip = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-
+$ip = md5($ip);
+_log('REMOTE IP:'. $ip);
 // peer with the current node
 if ($q == "peer") {
+    _log('INCOMING DATA '.$data['hostname']);
     if ($data['coin'] != $_config->coin) {
     print_r(json_encode(api_err("Invalid coin")));die;
 }
@@ -84,6 +92,7 @@ if ($q == "peer") {
     }
     $hostname = san_host($hostname);
     // if it's already peered, only repeer on request
+    
     $res = $db->single(
         "SELECT COUNT(1) FROM peers WHERE hostname=:hostname AND ip=:ip",
         [":hostname" => $hostname, ":ip" => $ip]
@@ -94,7 +103,7 @@ if ($q == "peer") {
             if ($res !== false) {
                 print_r(json_encode(api_echo("re-peer-ok")));die;
             } else {
-                print_r(json_encode(api_err("re-peer failed - $result")));die;
+                print_r(json_encode(api_err("re-peer failed 1 - $result")));die;
             }
         }
         print_r(json_encode(api_echo("peer-ok-already")));die;
@@ -105,17 +114,19 @@ if ($q == "peer") {
     if ($res < $_config->max_peers) {
         $reserve = 0;
     }
-    $db->run(
+    _log($db->run(
         "INSERT ignore INTO peers SET hostname=:hostname, reserve=:reserve, ping=UNIX_TIMESTAMP(), ip=:ip ON DUPLICATE KEY UPDATE hostname=:hostname2",
         [":ip" => $ip, ":hostname2" => $hostname, ":hostname" => $hostname, ":reserve" => $reserve]
-    );
+    ));
+    _log('Peering hostname '.$hostname . $data['hostname']);
     // re-peer to make sure the peer is valid
-    $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname]);
+    $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname],5);
+    _log('CHECK PEER '.$res);
     if ($res !== false) {
         print_r(json_encode(api_echo("re-peer-ok")));die;
     } else {
         $db->run("DELETE FROM peers WHERE ip=:ip", [":ip" => $ip]);
-        print_r(json_encode(api_err("re-peer failed - $result")));die;
+        print_r(json_encode(api_err("re-peer failed 2 - $result")));die;
     }
 } elseif ($q == "ping") {
     // confirm peer is active
