@@ -24,7 +24,7 @@ function san_host($a)
 function api_err($data)
 {
     global $_config;
-
+    _log('ERROR REPORTING: '.$data,3);
     if (!headers_sent()) {
         header('Content-Type: application/json');
     }
@@ -259,7 +259,7 @@ function isValidURL($url)
 function peer_post($url, $data = [], $timeout = 60, $debug = false)
 {
     global $_config;
-   if ($debug) {
+   if ($_config->debug) {
        _log("Peer post: {$url}") ;
      
     }
@@ -277,7 +277,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
             'data' => json_encode($data)
         ]
     );
-   if ($debug) {
+   if ($_config->debug) {
        _log("Peer post_data: {$postdata}") ;
      
     }
@@ -295,7 +295,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
 
     $result = file_get_contents($url, false, $context);
     
-    if ($debug) {
+    if ($_config->debug) {
         _log("Peer response: {$result}");
     }
     $res = json_decode($result, true);
