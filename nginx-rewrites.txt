@@ -4,7 +4,7 @@
 rewrite ^/doc/(.*)  /doc/$1 last;
 rewrite ^/mine/(.*)  /mine/mine.php$1 last;
 rewrite ^/peer.php(.*)  /peer.php$1 last;
-rewrite ^/html/(.*)  /html/index.html$1 last;
+rewrite ^/html/(.*)  /html/$1 last;
 
 rewrite ^(.*) /index.php?$1;
 #-------------------
