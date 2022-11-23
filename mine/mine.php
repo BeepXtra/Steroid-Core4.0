@@ -174,7 +174,7 @@ if ($q == "info") {
             print_r(json_encode(api_err("rejected")));
         }
     } else {
-        _log("Miner failed to verify argon ".$argon, 3);
+        _log("Miner failed to verify argon ".$argon ." ".$nonce, 3);
         print_r(json_encode(api_err("rejected")));
     }
     
