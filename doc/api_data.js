@@ -104,6 +104,50 @@ define({ "api": [
   },
   {
     "type": "get",
+    "url": window.location.hostname+"/api/assetbalance",
+    "title": "23. assetbalance",
+    "name": "assetbalance",
+    "group": "API",
+    "description": "<p>Get Asset Balance.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "$asset_address:$wallet_address",
+            "description": "<p>$asset_address The wallet of the smart contract   :$wallet_address The wallet that you want to check the balance</p>"
+          } 
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Check Asset Balance.</p>"
+          }
+        ]
+      },
+       "examples": [
+        {
+          "title": "Success-Response:",
+          "content": '{\r\n  \"success\": true,\r\n  \"request\": {\r\n    \"method\": \"GET\",\r\n    \"controller\": \"api\",\r\n    \"resource\": \"assetbalance\",\r\n    \"parameters\": \"\/api\/assetbalance\/$asset_address:$wallet_address\",\r\n    \"url_elements\": [\r\n      \"api\",\r\n      \"assetbalance\",\r\n      \"$asset_address:$wallet_address\"\r\n    ],\r\n    \"mileage\": \"0.011698007583618\"\r\n  },\r\n  \"error\": {\r\n    \"errorid\": 0,\r\n    \"message\": 0\r\n  },\r\n  \"data\": {\r\n    \"status\": \"ok\",\r\n    \"data\": [\r\n      {\r\n        \"asset\": \"$asset_address\",\r\n        \"alias\": \"Token Name\",\r\n        \"account\": \" $wallet_address\",\r\n        \"balance\": 10\r\n      }\r\n    ],\r\n    \"coin\": \"bpc\"\r\n  }\r\n}',
+          "type": "json"
+        }
+      ]
+    },
+    
+    "version": "1.3.0",
+    "filename": "./api",
+    "groupTitle": "API"
+  },{
+    "type": "get",
     "url": window.location.hostname+"/api/checkaddress",
     "title": "22. checkAddress",
     "name": "checkAddress",
@@ -1132,6 +1176,83 @@ define({ "api": [
             "optional": false,
             "field": "data.peers",
             "description": "<p>The number of valid peers.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "number",
+            "optional": false,
+            "field": "data.height",
+            "description": "<p>The current height of the node.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data.passive_peering",
+            "description": "<p>Passive peering.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.public_key",
+            "description": "<p>The $public_key that is connected to the current node.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "number",
+            "optional": false,
+            "field": "data.loadavg",
+            "description": "<p>Load Average Of the node.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "number",
+            "optional": false,
+            "field": "data.disk",
+            "description": "<p>Node total disk and Node available space .</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "number",
+            "optional": false,
+            "field": "data.memory",
+            "description": "<p>Node total memory and Node available memory .</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.php",
+            "description": "<p>PHP Version.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.system",
+            "description": "<p>Node Operating System.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.webserver",
+            "description": "<p>Node Web Server.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.dbengine",
+            "description": "<p>Node db Engine.</p>"
+          },
+            {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.coin",
+            "description": "<p>Bpc</p>"
           }
         ]
       }
