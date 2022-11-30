@@ -54,8 +54,6 @@ if (!empty(file_get_contents('php://input'))) {
     _log("Peer file: {$json}") ;
    
     $data = json_decode($json,true);
-    _log("Peer decode: {$data}") ;
-   
 }
 
 // make sure it's the same coin and not testnet
