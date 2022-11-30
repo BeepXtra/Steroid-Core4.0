@@ -880,7 +880,7 @@ class STx {
                 return false;
             }
             // check if the asset exists
-            $blockasset=$db->row("SELECT id, price FROM assets WHERE id=:id", [":id"=>san($asset[0])]);
+            $blockasset=$db->row("SELECT id, price, tradable FROM assets WHERE id=:id", [":id"=>san($asset[0])]);
             if (!$blockasset) {
                 _log("Invalid asset", 3);
                 return false;
@@ -935,7 +935,7 @@ class STx {
 
             $blockasset=$db->row("SELECT * FROM assets WHERE id=:id", [":id"=>san($asset[0])]);
             if (!$blockasset||$blockasset['tradable']!=1) {
-                _log("Invalid asset", 3);
+                _log("Invalid asset or not tradable", 3);
                 return false;
             }
             // the sale price per unit has to be at least 0.00000001 or max 1000000 bpc
