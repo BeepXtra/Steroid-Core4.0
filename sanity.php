@@ -1,50 +1,54 @@
 <?php
+
 /*
-The MIT License (MIT)
-Copyright (c) 2018 BpcDev
+  The MIT License (MIT)
+  Copyright (c) 2018 BpcDev
 
-www.steroid.io
+  www.steroid.io
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
-OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+  DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+  OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 define('_SECURED', 1);
-const SANITY_LOCK_PATH = __DIR__.'/tmp/sanity-lock';
+
+const SANITY_LOCK_PATH = __DIR__ . '/tmp/sanity-lock';
 
 set_time_limit(0);
-error_reporting(0);
-
+//error_reporting(0);
 // make sure it's not accessible in the browser
 if (php_sapi_name() !== 'cli') {
     die("This should only be run as cli");
 }
-include('../library/classes/SCore.php');
+
+include('library/classes/SCore.php');
 $platform = new SCore();
+
 //parse configuration
 $_config = $platform->config;
 //initialize database library
 $db = $platform->db;
-require_once '../library/includes/init.inc.php';
-
+require_once 'library/includes/init.inc.php';
+isset($argv[1]) ? $arg = trim($argv[1]) : $arg = '';
+isset($argv[2]) ? $arg2 = trim($argv[2]) : $arg2 = '';
 // make sure there's only a single sanity process running at the same time
 if (file_exists(SANITY_LOCK_PATH)) {
     $ignore_lock = false;
-    if ($argv[1] == "force") {
+    if ($argv == "force") {
         $res = intval(shell_exec("ps aux|grep sanity.php|grep -v grep|wc -l"));
         if ($res == 1) {
             $ignore_lock = true;
@@ -58,22 +62,21 @@ if (file_exists(SANITY_LOCK_PATH)) {
     }
 
     if (!$ignore_lock) {
-        die("Sanity lock in place".PHP_EOL);
+        die("Sanity lock in place" . PHP_EOL);
     }
 }
 
 // set the new sanity lock
 $lock = fopen(SANITY_LOCK_PATH, "w");
 fclose($lock);
-$arg = trim($argv[1]);
-$arg2 = trim($argv[2]);
+
 echo "Sleeping for 3 seconds\n";
 // sleep for 3 seconds to make sure there's a delay between starting the sanity and other processes
 if ($arg != "microsanity") {
     sleep(3);
 }
 
-if ($argv[1]=="dev") {
+if ($arg == "dev") {
     error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE);
     ini_set("display_errors", "on");
 }
@@ -86,54 +89,49 @@ if ($_config->dbversion < 2) {
 }
 
 ini_set('memory_limit', '2G');
-require_once '../library/classes/SBlock.php';
-require_once '../library/classes/SWallet.php';
-require_once '../library/classes/STx.php';
+require_once 'library/classes/SBlock.php';
+require_once 'library/classes/SWallet.php';
+require_once 'library/classes/STx.php';
 $block = new SBlock();
 $acc = new SWallet();
-$trx= new STx();
+$trx = new STx();
 
 $current = $block->current();
 
-
-
-
-
 // bootstrapping the initial sync
-if ($current['height']==1) {
+if ($current['height'] == 1) {
     echo "Bootstrapping!\n";
-    $db_name=substr($_config->db_connect, strrpos($_config->db_connect, "dbname=")+7);
-    $db_host=substr($_config->db_connect, strpos($_config->db_connect, ":host=")+6);
-    $db_host=substr($db_host, 0, strpos($db_host, ";"));
+    $db_name = $_config->strd_database;
+    $db_host = $_config->db_hostname;
 
     echo "DB name: $db_name\n";
     echo "DB host: $db_host\n";
-    echo "Downloading the blockchain dump from steroid4.info\n";
-    $bpcfile=__DIR__ . '/tmp/bpc.sql';
+    echo "Downloading the blockchain dump from steroid.io\n";
+    $bpcfile = __DIR__ . '/tmp/bpc.sql';
     if (file_exists("/usr/bin/curl")) {
-        system("/usr/bin/curl -o $bpcfile 'https://steroid4.info/dump/bpc.sql'", $ret);
+        system("/usr/bin/curl -o $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
     } elseif (file_exists("/usr/bin/wget")) {
-        system("/usr/bin/wget -O $bpcfile 'https://steroid4.info/dump/bpc.sql'", $ret);
+        system("/usr/bin/wget -O $bpcfile 'https://www.steroid.io/dump/S4QL.sql'", $ret);
     } else {
         die("/usr/bin/curl and /usr/bin/wget not installed or inaccessible. Please install either of them.");
     }
-    
+
 
     echo "Importing the blockchain dump\n";
-    system("mysql -h ".escapeshellarg($db_host)." -u ".escapeshellarg($_config->db_username)." -p".escapeshellarg($_config->db_password)." ".escapeshellarg($db_name). " < ".$bpcfile);
+    system("mysql -h " . escapeshellarg($db_host) . " -u " . escapeshellarg($_config->db_username) . " -p" . escapeshellarg($_config->db_password) . " " . escapeshellarg($db_name) . " < " . $bpcfile);
     echo "Bootstrapping completed. Waiting 2mins for the tables to be unlocked.\n";
-    
+
     while (1) {
         sleep(120);
-  
-        $res=$db->run("SHOW OPEN TABLES WHERE In_use > 0");
-        if (count($res==0)) {
+
+        $res = $db->run("SHOW OPEN TABLES WHERE In_use > 0");
+        if (count($res) == 0) {
             break;
         }
         echo "Tables still locked. Sleeping for another 2 min. \n";
     }
 
-   
+
 
     $current = $block->current();
 }
@@ -143,16 +141,16 @@ if ($arg == "microsanity" && !empty($arg2)) {
     do {
         // the microsanity runs only against 1 specific peer
         $x = $db->row(
-            "SELECT id,hostname FROM peers WHERE reserve=0 AND blacklisted<UNIX_TIMESTAMP() AND ip=:ip",
-            [":ip" => $arg2]
+                "SELECT id,hostname FROM peers WHERE reserve=0 AND blacklisted<UNIX_TIMESTAMP() AND ip=:ip",
+                [":ip" => $arg2]
         );
 
         if (!$x) {
             echo "Invalid node - $arg2\n";
             break;
         }
-        $url = $x['hostname']."/peer.php?q=";
-        $data = peer_post($url."getBlock", ["height" => $current['height']]);
+        $url = $x['hostname'] . "/peer.php?q=";
+        $data = peer_post($url . "getBlock", ["height" => $current['height']]);
 
         if (!$data) {
             echo "Invalid getBlock result\n";
@@ -167,7 +165,6 @@ if ($arg == "microsanity" && !empty($arg2)) {
         }
 
         // the blockchain with the most transactions wins the fork (to encourage the miners to include as many transactions as possible) / might backfire on garbage
-
         // transform the first 12 chars into an integer and choose the blockchain with the biggest value
         $no1 = hexdec(substr(coin2hex($current['id']), 0, 12));
         $no2 = hexdec(substr(coin2hex($data['id']), 0, 12));
@@ -176,19 +173,19 @@ if ($arg == "microsanity" && !empty($arg2)) {
             echo "Block hex larger than current\n";
             break;
         }
-        
+
         // make sure the block is valid
         $prev = $block->get($current['height'] - 1);
         $public = $acc->public_key($data['generator']);
         if (!$block->mine(
-            $public,
-            $data['nonce'],
-            $data['argon'],
-            $block->difficulty($current['height'] - 1),
-            $prev['id'],
-            $prev['height'],
-            $data['date']
-        )) {
+                        $public,
+                        $data['nonce'],
+                        $data['argon'],
+                        $block->difficulty($current['height'] - 1),
+                        $prev['id'],
+                        $prev['height'],
+                        $data['date']
+                )) {
             echo "Invalid prev-block\n";
             break;
         }
@@ -199,22 +196,20 @@ if ($arg == "microsanity" && !empty($arg2)) {
         // delete the last block
         $block->pop(1);
 
-
         // add the new block
         echo "Starting to sync last block from $x[hostname]\n";
         $b = $data;
 
-        
         $res = $block->add(
-            $b['height'],
-            $b['public_key'],
-            $b['nonce'],
-            $b['data'],
-            $b['date'],
-            $b['signature'],
-            $b['difficulty'],
-            $b['reward_signature'],
-            $b['argon']
+                $b['height'],
+                $b['public_key'],
+                $b['nonce'],
+                $b['data'],
+                $b['date'],
+                $b['signature'],
+                $b['difficulty'],
+                $b['reward_signature'],
+                $b['argon']
         );
         if (!$res) {
             _log("Block add: could not add block - $b[id] - $b[height]");
@@ -246,7 +241,6 @@ $most_common_size = 0;
 $total_active_peers = 0;
 
 // checking peers
-
 // delete the dead peers
 $db->run("DELETE from peers WHERE fails>100 OR stuckfail>100");
 $r = $db->run("SELECT id,hostname,stuckfail,fails FROM peers WHERE reserve=0 AND blacklisted<UNIX_TIMESTAMP() LIMIT 50");
@@ -257,7 +251,7 @@ $peered = [];
 // if we have no peers, get the seed list from the official site
 if ($total_peers == 0 && $_config->testnet == false) {
     $i = 0;
-    echo 'No peers found. Attempting to get peers from the initial list.'.PHP_EOL;
+    echo 'No peers found. Attempting to get peers from the initial list.' . PHP_EOL;
 
     $initialPeers = new \Steroid4\Node\InitialPeers($_config->initial_peer_list ?? []);
 
@@ -265,18 +259,18 @@ if ($total_peers == 0 && $_config->testnet == false) {
         $peers = $initialPeers->getAll();
     } catch (\Steroid4\Node\Exception $e) {
         @unlink(SANITY_LOCK_PATH);
-        die($e->getMessage().PHP_EOL);
+        die($e->getMessage() . PHP_EOL);
     }
 
     foreach ($peers as $peer) {
         // Peer with all until max_peers
         // This will ask them to send a peering request to our peer.php where we add their peer to the db.
         $peer = trim(san_host($peer));
-        $bad_peers = ["127.", "localhost", "10.", "192.168.","172.16.","172.17.","172.18.","172.19.","172.20.","172.21.","172.22.","172.23.","172.24.","172.25.","172.26.","172.27.","172.28.","172.29.","172.30.","172.31."];
+        $bad_peers = ["127.", "localhost", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31."];
 
-        $tpeer=str_replace(["https://","http://","//"], "", $peer);
+        $tpeer = str_replace(["https://", "http://", "//"], "", $peer);
         foreach ($bad_peers as $bp) {
-            if (strpos($tpeer, $bp)===0) {
+            if (strpos($tpeer, $bp) === 0) {
                 continue;
             }
         }
@@ -292,14 +286,18 @@ if ($total_peers == 0 && $_config->testnet == false) {
             continue;
         }
         $peered[$pid] = 1;
-        
+
         if ($_config->passive_peering == true) {
             // does not peer, just add it to DB in passive mode
-            $db->run("INSERT into peers set hostname=:hostname, ping=0, reserve=0,ip=:ip", [":hostname"=>$peer, ":ip"=>md5($peer)]);
-            $res=true;
+            $check = $db->run("SELECT * FROM peers where  hostname=:hostname and ip=:ip", [":hostname" => $peer, ":ip" => $pid]);
+            $check = count($check);
+            if ($check == 0) {
+                $db->run("INSERT into peers set hostname=:hostname, ping=0, reserve=0,ip=:ip", [":hostname" => $peer, ":ip" => $pid]);
+            }
+            $res = true;
         } else {
             // forces the other node to peer with us.
-            $res = peer_post($peer."/peer.php?q=peer", ["hostname" => $_config->hostname, "repeer" => 1]);
+            $res = peer_post($peer . "/peer.php?q=peer", ["hostname" => $_config->hostname, "repeer" => 1]);
         }
         if ($res !== false) {
             $i++;
@@ -322,19 +320,19 @@ if ($total_peers == 0 && $_config->testnet == false) {
 }
 
 // contact all the active peers
- $i = 0;
+$i = 0;
 foreach ($r as $x) {
     _log("Contacting peer $x[hostname]");
-    $url = $x['hostname']."/peer.php?q=";
+    $url = $x['hostname'] . "/peer.php?q=";
     // get their peers list
-    if ($_config->get_more_peers==true && $_config->passive_peering!=true) {
-        $data = peer_post($url."getPeers", [], 5);
+    if ($_config->get_more_peers == true && $_config->passive_peering != true) {
+        $data = peer_post($url . "getPeers", [], 5);
         if ($data === false) {
             _log("Peer $x[hostname] unresponsive");
             // if the peer is unresponsive, mark it as failed and blacklist it for a while
             $db->run(
-                "UPDATE peers SET fails=fails+1, blacklisted=UNIX_TIMESTAMP()+((fails+1)*3600) WHERE id=:id",
-                [":id" => $x['id']]
+                    "UPDATE peers SET fails=fails+1, blacklisted=UNIX_TIMESTAMP()+((fails+1)*3600) WHERE id=:id",
+                    [":id" => $x['id']]
             );
             continue;
         }
@@ -342,16 +340,16 @@ foreach ($r as $x) {
             // store the hostname as md5 hash, for easier checking
             $peer['hostname'] = san_host($peer['hostname']);
             $peer['ip'] = san_ip($peer['ip']);
-            $pid = md5($peer['hostname']);
+            $pid = md5($peer['ip']);
             // do not peer if we are already peered
             if ($peered[$pid] == 1) {
                 continue;
             }
             $peered[$pid] = 1;
-            $bad_peers = ["127.", "localhost", "10.", "192.168.","172.16.","172.17.","172.18.","172.19.","172.20.","172.21.","172.22.","172.23.","172.24.","172.25.","172.26.","172.27.","172.28.","172.29.","172.30.","172.31."];
-            $tpeer=str_replace(["https://","http://","//"], "", $peer['hostname']);
+            $bad_peers = ["127.", "localhost", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31."];
+            $tpeer = str_replace(["https://", "http://", "//"], "", $peer['hostname']);
             foreach ($bad_peers as $bp) {
-                if (strpos($tpeer, $bp)===0) {
+                if (strpos($tpeer, $bp) === 0) {
                     continue;
                 }
             }
@@ -364,10 +362,10 @@ foreach ($r as $x) {
                 continue;
             }
             // make sure there's no peer in db with this ip or hostname
-            if (!$db->single(
-                "SELECT COUNT(1) FROM peers WHERE ip=:ip or hostname=:hostname",
-                [":ip" => $peer['ip'], ":hostname" => $peer['hostname']]
-            )) {
+            /*if (!$db->single(
+                            "SELECT COUNT(1) FROM peers WHERE ip=:ip or hostname=:hostname",
+                            [":ip" => $peer['ip'], ":hostname" => $peer['hostname']]
+                    )) {*/
                 $i++;
                 // check a max_test_peers number of peers from each peer
                 if ($i > $_config->max_test_peers) {
@@ -376,27 +374,28 @@ foreach ($r as $x) {
                 $peer['hostname'] = filter_var($peer['hostname'], FILTER_SANITIZE_URL);
                 // peer with each one
                 _log("Trying to peer with recommended peer: $peer[hostname]");
-                $test = peer_post($peer['hostname']."/peer.php?q=peer", ["hostname" => $_config->hostname], 5);
+                $test = peer_post($peer['hostname'] . "/peer.php?q=peer", ["hostname" => $_config->hostname], 5);
                 if ($test !== false) {
                     $total_peers++;
                     echo "Peered with: $peer[hostname]\n";
                     // a single new peer per sanity
-                    $_config->get_more_peers=false;
+                    $_config->get_more_peers = false;
                 }
-            }
+            //}
+
         }
     }
 
     // get the current block and check it's blockchain
-    $data = peer_post($url."currentBlock", [], 5);
+    $data = peer_post($url . "currentBlock", [], 5);
     if ($data === false) {
         _log("Peer $x[hostname] unresponsive");
         // if the peer is unresponsive, mark it as failed and blacklist it for a while
         $db->run(
-            "UPDATE peers SET fails=fails+1, blacklisted=UNIX_TIMESTAMP()+((fails+1)*3600) WHERE id=:id",
-            [":id" => $x['id']]
+                "UPDATE peers SET fails=fails+1, blacklisted=UNIX_TIMESTAMP()+((fails+1)*3600) WHERE id=:id",
+                [":id" => $x['id']]
         );
-         
+
         continue;
     }
     // peer was responsive, mark it as good
@@ -408,8 +407,8 @@ foreach ($r as $x) {
 
     if ($data['height'] < $current['height'] - 500) {
         $db->run(
-            "UPDATE peers SET stuckfail=stuckfail+1, blacklisted=UNIX_TIMESTAMP()+7200 WHERE id=:id",
-            [":id" => $x['id']]
+                "UPDATE peers SET stuckfail=stuckfail+1, blacklisted=UNIX_TIMESTAMP()+7200 WHERE id=:id",
+                [":id" => $x['id']]
         );
         continue;
     } else {
@@ -417,11 +416,14 @@ foreach ($r as $x) {
             $db->run("UPDATE peers SET stuckfail=0 WHERE id=:id", [":id" => $x['id']]);
         }
     }
+
     $total_active_peers++;
     // add the hostname and block relationship to an array
     $block_peers[$data['id']][] = $x['hostname'];
     // count the number of peers with this block id
+    !isset($blocks_count[$data['id']]) ? $blocks_count[$data['id']] = 0 : '';
     $blocks_count[$data['id']]++;
+
     // keep block data for this block id
     $blocks[$data['id']] = $data;
     // set the most common block on all peers
@@ -430,6 +432,8 @@ foreach ($r as $x) {
         $most_common_size = $blocks_count[$data['id']];
     }
     // set the largest height block
+    $largest_height = $current['height'];
+    $largest_height_block = $data['id'];
     if ($data['height'] > $largest_height) {
         $largest_height = $data['height'];
         $largest_height_block = $data['id'];
@@ -441,9 +445,9 @@ foreach ($r as $x) {
                 $largest_height = $data['height'];
                 $largest_height_block = $data['id'];
             } else {
-               
 
-                    // if the blocks have the same number of transactions, choose the one with the highest derived integer from the first 12 hex characters
+
+                // if the blocks have the same number of transactions, choose the one with the highest derived integer from the first 12 hex characters
                 $no1 = hexdec(substr(coin2hex($largest_height_block), 0, 12));
                 $no2 = hexdec(substr(coin2hex($data['id']), 0, 12));
                 if (gmp_cmp($no1, $no2) == 1) {
@@ -461,12 +465,14 @@ foreach ($r as $x) {
 echo "Most common: $most_common\n";
 echo "Most common block: $most_common_size\n";
 echo "Max height: $largest_height\n";
-echo "Current block: $current[height]\n";
-$block_parse_failed=false;
+echo "Current block: " . $current['height'] . "\n";
+$block_parse_failed = false;
 
-$failed_syncs=0;
+$failed_syncs = 0;
 // if we're not on the largest height
+
 if ($current['height'] < $largest_height && $largest_height > 1) {
+    _log('========>Syncing block height ' . $current['height']);
     // start  sanity sync / block all other transactions/blocks
     $db->run("UPDATE config SET val=1 WHERE cfg='sanity_sync'");
     sleep(10);
@@ -477,11 +483,10 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
     // sync from them
     foreach ($peers as $host) {
         _log("Starting to sync from $host");
-        $url = $host."/peer.php?q=";
-        $data = peer_post($url."getBlock", ["height" => $current['height']], 60);
-        // invalid data
+        $url = $host . "/peer.php?q=";
+        $data = peer_post($url . "getBlock", ["height" => $current['height']], 60, 1);
         if ($data === false) {
-            _log("Could not get block from $host - $current[height]");
+            _log("Could not get block from $host - {$current['height']}");
             continue;
         }
         $data['id'] = san($data['id']);
@@ -491,10 +496,10 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
         if ($data['id'] != $current['id'] && $data['id'] == $most_common && ($most_common_size / $total_active_peers) > 0.90) {
             $block->delete($current['height'] - 3);
             $current = $block->current();
-            $data = peer_post($url."getBlock", ["height" => $current['height']]);
+            $data = peer_post($url . "getBlock", ["height" => $current['height']]);
 
             if ($data === false) {
-                _log("Could not get block from $host - $current[height]");
+                _log("Could not get block from $host - {$current['height']}");
                 break;
             }
         } elseif ($data['id'] != $current['id'] && $data['id'] != $most_common) {
@@ -502,7 +507,7 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
             $invalid = false;
             $last_good = $current['height'];
             for ($i = $current['height'] - 100; $i < $current['height']; $i++) {
-                $data = peer_post($url."getBlock", ["height" => $i]);
+                $data = peer_post($url . "getBlock", ["height" => $i]);
                 if ($data === false) {
                     $invalid = true;
                     break;
@@ -517,18 +522,18 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
                     $last_good = $i;
                 }
             }
-            if ($last_good==$current['height']-1) {
-                $try_pop=$block->pop(1);
-                if($try_pop==false){
+            if ($last_good == $current['height'] - 1) {
+                $try_pop = $block->pop(1);
+                if ($try_pop == false) {
                     // we can't pop the last block, we should resync
-                    $block_parse_failed=true;
+                    $block_parse_failed = true;
                 }
             }
             // if last 10 blocks are good, verify all the blocks
             if ($invalid == false) {
                 $cblock = [];
                 for ($i = $last_good; $i <= $largest_height; $i++) {
-                    $data = peer_post($url."getBlock", ["height" => $i]);
+                    $data = peer_post($url . "getBlock", ["height" => $i]);
                     if ($data === false) {
                         $invalid = true;
                         break;
@@ -537,18 +542,18 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
                 }
                 // check if the block mining data is correct
                 for ($i = $last_good + 1; $i <= $largest_height; $i++) {
-                    if (($i-1)%3==2&&$cblock[$i - 1]['height']<80458) {
+                    if (($i - 1) % 3 == 2 && $cblock[$i - 1]['height'] < 80458) {
                         continue;
                     }
                     if (!$block->mine(
-                        $cblock[$i]['public_key'],
-                        $cblock[$i]['nonce'],
-                        $cblock[$i]['argon'],
-                        $cblock[$i]['difficulty'],
-                        $cblock[$i - 1]['id'],
-                        $cblock[$i - 1]['height'],
-                        $cblock[$i]['date']
-                    )) {
+                                    $cblock[$i]['public_key'],
+                                    $cblock[$i]['nonce'],
+                                    $cblock[$i]['argon'],
+                                    $cblock[$i]['difficulty'],
+                                    $cblock[$i - 1]['id'],
+                                    $cblock[$i - 1]['height'],
+                                    $cblock[$i]['date']
+                            )) {
                         $invalid = true;
                         break;
                     }
@@ -557,9 +562,9 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
             // if the blockchain proves ok, delete until the last block
             if ($invalid == false) {
                 _log("Changing fork, deleting $last_good", 1);
-                $res=$block->delete($last_good);
-                if($res==false){
-                    $block_parse_failed=true;
+                $res = $block->delete($last_good);
+                if ($res == false) {
+                    $block_parse_failed = true;
                     break;
                 }
                 $current = $block->current();
@@ -572,37 +577,37 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
         }
         // start syncing all blocks
         while ($current['height'] < $largest_height) {
-            $data = peer_post($url."getBlocks", ["height" => $current['height'] + 1]);
+            $data = peer_post($url . "getBlocks", ["height" => $current['height'] + 1]);
 
             if ($data === false) {
-                _log("Could not get blocks from $host - height: $current[height]");
+                _log("Could not get blocks from  $host - height: {$current['height']}");
                 break;
             }
             $good_peer = true;
             foreach ($data as $b) {
                 $b['id'] = san($b['id']);
                 $b['height'] = san($b['height']);
-                
+
                 if (!$block->check($b)) {
-                    $block_parse_failed=true;
+                    $block_parse_failed = true;
                     _log("Block check: could not add block - $b[id] - $b[height]");
                     $good_peer = false;
                     $failed_syncs++;
                     break;
                 }
                 $res = $block->add(
-                    $b['height'],
-                    $b['public_key'],
-                    $b['nonce'],
-                    $b['data'],
-                    $b['date'],
-                    $b['signature'],
-                    $b['difficulty'],
-                    $b['reward_signature'],
-                    $b['argon']
+                        $b['height'],
+                        $b['public_key'],
+                        $b['nonce'],
+                        $b['data'],
+                        $b['date'],
+                        $b['signature'],
+                        $b['difficulty'],
+                        $b['reward_signature'],
+                        $b['argon']
                 );
                 if (!$res) {
-                    $block_parse_failed=true;
+                    $block_parse_failed = true;
                     _log("Block add: could not add block - $b[id] - $b[height]");
                     $good_peer = false;
                     $failed_syncs++;
@@ -619,34 +624,34 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
         if ($good_peer) {
             break;
         }
-        if ($failed_syncs>5) {
+        if ($failed_syncs > 5) {
             break;
         }
     }
 
-    if ($block_parse_failed==true||$argv[1]=="resync") {
-        $last_resync=$db->single("SELECT val FROM config WHERE cfg='last_resync'");
-        if ($last_resync<time()-(3600*24)||$argv[1]=="resync") {
-            if ((($current['date']<time()-(3600*72)) && $_config->auto_resync!==false) || $argv[1]=="resync") {
+    if ($block_parse_failed == true || $argv == "resync") {
+        $last_resync = $db->single("SELECT val FROM config WHERE cfg='last_resync'");
+        if ($last_resync < time() - (3600 * 24) || $argv == "resync") {
+            if ((($current['date'] < time() - (3600 * 72)) && $_config->auto_resync !== false) || $argv == "resync") {
                 $db->run("SET foreign_key_checks=0;");
-                $tables = ["accounts", "transactions", "mempool", "masternode","blocks"];
+                $tables = ["accounts", "transactions", "mempool", "masternode", "blocks"];
                 foreach ($tables as $table) {
                     $db->run("TRUNCATE TABLE {$table}");
                 }
                 $db->run("SET foreign_key_checks=1;");
-                
-                $resyncing=true;
+
+                $resyncing = true;
                 $db->run("UPDATE config SET val=0 WHERE cfg='sanity_sync'", [":time" => $t]);
-                
+
                 _log("Exiting sanity, next sanity will resync from scratch.");
 
                 @unlink(SANITY_LOCK_PATH);
                 exit;
-            } elseif ($current['date']<time()-(3600*24)) {
+            } elseif ($current['date'] < time() - (3600 * 24)) {
                 _log("Removing 200 blocks, the blockchain is stale.");
                 $block->pop(200);
 
-                $resyncing=true;
+                $resyncing = true;
             }
         }
     }
@@ -657,39 +662,38 @@ if ($current['height'] < $largest_height && $largest_height > 1) {
 
 
 
-    $resyncing=false;
-    if ($block_parse_failed==true&&$current['date']<time()-(3600*24)) {
-        _log("Rechecking reward transactions");
-        $current = $block->current();
-        $rwpb=$db->single("SELECT COUNT(1) FROM transactions WHERE version=0 AND message=''");
-        if ($rwpb!=$current['height']) {
-            $failed=$db->single("SELECT blocks.height FROM blocks LEFT JOIN transactions ON transactions.block=blocks.id and transactions.version=0 and transactions.message='' WHERE transactions.height is NULL ORDER by blocks.height ASC LIMIT 1");
-            if ($failed>1) {
-                _log("Found failed block - $faield");
-                $block->delete($failed);
-                $block_parse_failed==false;
-            }
+$resyncing = false;
+if ($block_parse_failed == true && $current['date'] < time() - (3600 * 24)) {
+    _log("Rechecking reward transactions");
+    $current = $block->current();
+    $rwpb = $db->single("SELECT COUNT(1) FROM transactions WHERE version=0 AND message=''");
+    if ($rwpb != $current['height']) {
+        $failed = $db->single("SELECT blocks.height FROM blocks LEFT JOIN transactions ON transactions.block=blocks.id and transactions.version=0 and transactions.message='' WHERE transactions.height is NULL ORDER by blocks.height ASC LIMIT 1");
+        if ($failed > 1) {
+            _log("Found failed block - $faield");
+            $block->delete($failed);
+            $block_parse_failed == false;
         }
     }
-   
+}
+
 
 // deleting mempool transactions older than 14 days
 $db->run("DELETE FROM `mempool` WHERE `date` < UNIX_TIMESTAMP()-(3600*24*14)");
 
-
 //rebroadcasting local transactions
 if ($_config->sanity_rebroadcast_locals == true && $_config->disable_repropagation == false) {
     $r = $db->run(
-        "SELECT id FROM mempool WHERE height<:current and peer='local' order by `height` asc LIMIT 20",
-        [":current" => $current['height']]
+            "SELECT id FROM mempool WHERE height<:current and peer='local' order by `height` asc LIMIT 20",
+            [":current" => $current['height']]
     );
-    _log("Rebroadcasting local transactions - ".count($r));
+    _log("Rebroadcasting local transactions - " . count($r));
     foreach ($r as $x) {
         $x['id'] = escapeshellarg(san($x['id'])); // i know it's redundant due to san(), but some people are too scared of any exec
         system("php propagate.php transaction $x[id]  > /dev/null 2>&1  &");
         $db->run(
-            "UPDATE mempool SET height=:current WHERE id=:id",
-            [":id" => $x['id'], ":current" => $current['height']]
+                "UPDATE mempool SET height=:current WHERE id=:id",
+                [":id" => $x['id'], ":current" => $current['height']]
         );
     }
 }
@@ -698,18 +702,17 @@ if ($_config->sanity_rebroadcast_locals == true && $_config->disable_repropagati
 if ($_config->disable_repropagation == false) {
     $forgotten = $current['height'] - $_config->sanity_rebroadcast_height;
     $r1 = $db->run(
-        "SELECT id FROM mempool WHERE height<:forgotten ORDER by val DESC LIMIT 10",
-        [":forgotten" => $forgotten]
+            "SELECT id FROM mempool WHERE height<:forgotten ORDER by val DESC LIMIT 10",
+            [":forgotten" => $forgotten]
     );
     // getting some random transactions as well
     $r2 = $db->run(
-        "SELECT id FROM mempool WHERE height<:forgotten ORDER by RAND() LIMIT 10",
-        [":forgotten" => $forgotten]
+            "SELECT id FROM mempool WHERE height<:forgotten ORDER by RAND() LIMIT 10",
+            [":forgotten" => $forgotten]
     );
-    $r=array_merge($r1, $r2);
+    $r = array_merge($r1, $r2);
 
-
-    _log("Rebroadcasting external transactions - ".count($r));
+    _log("Rebroadcasting external transactions - " . count($r));
 
     foreach ($r as $x) {
         $x['id'] = escapeshellarg(san($x['id'])); // i know it's redundant due to san(), but some people are too scared of any exec
@@ -725,14 +728,14 @@ if ($total_peers < $_config->max_peers * 0.7) {
 }
 
 //random peer check
-$r = $db->run("SELECT * FROM peers WHERE blacklisted<UNIX_TIMESTAMP() and reserve=1 LIMIT :limit", [":limit"=>intval($_config->max_test_peers)]);
+$r = $db->run("SELECT * FROM peers WHERE blacklisted<UNIX_TIMESTAMP() and reserve=1 LIMIT :limit", [":limit" => intval($_config->max_test_peers)]);
 foreach ($r as $x) {
-    $url = $x['hostname']."/peer.php?q=";
-    $data = peer_post($url."ping", [], 5);
+    $url = $x['hostname'] . "/peer.php?q=";
+    $data = peer_post($url . "ping", [], 5);
     if ($data === false) {
         $db->run(
-            "UPDATE peers SET fails=fails+1, blacklisted=UNIX_TIMESTAMP()+((fails+1)*60) WHERE id=:id",
-            [":id" => $x['id']]
+                "UPDATE peers SET fails=fails+1, blacklisted=UNIX_TIMESTAMP()+((fails+1)*60) WHERE id=:id",
+                [":id" => $x['id']]
         );
         _log("Random reserve peer test $x[hostname] -> FAILED");
     } else {
@@ -764,14 +767,14 @@ if ($_config->sanity_recheck_blocks > 0 && $_config->testnet == false) {
         $key = $db->single("SELECT public_key FROM accounts WHERE id=:id", [":id" => $data['generator']]);
 
         if (!$block->mine(
-            $key,
-            $data['nonce'],
-            $data['argon'],
-            $data['difficulty'],
-            $blocks[$i - 1]['id'],
-            $blocks[$i - 1]['height'],
-            $data['date']
-        )) {
+                        $key,
+                        $data['nonce'],
+                        $data['argon'],
+                        $data['difficulty'],
+                        $blocks[$i - 1]['id'],
+                        $blocks[$i - 1]['height'],
+                        $data['date']
+                )) {
             $db->run("UPDATE config SET val=1 WHERE cfg='sanity_sync'");
             _log("Invalid block detected. Deleting everything after $data[height] - $data[id]");
             sleep(10);
@@ -788,66 +791,65 @@ if ($_config->sanity_recheck_blocks > 0 && $_config->testnet == false) {
 }
 
 // not too often to not cause load
-if (rand(0, 10)==1) {
+if (rand(0, 10) == 1) {
     // after 10000 blocks, clear asset internal transactions
-    $db->run("DELETE FROM transactions WHERE (version=57 or version=58 or version=59) AND height<:height", [":height"=>$current['height']-10000]);
+    $db->run("DELETE FROM transactions WHERE (version=57 or version=58 or version=59) AND height<:height", [":height" => $current['height'] - 10000]);
 
     // remove market orders that have been filled, after 10000 blocks
-    $r=$db->run("SELECT id FROM assets_market WHERE val_done=val or status=2");
+    $r = $db->run("SELECT id FROM assets_market WHERE val_done=val or status=2");
     foreach ($r as $x) {
-        $last=$db->single("SELECT height FROM transactions WHERE (public_key=:id or dst=:id2) ORDER by height DESC LIMIT 1", [":id"=>$x['id'], ":id2"=>$x['id']]);
-        if ($current['height']-$last>10000) {
-            $db->run("DELETE FROM assets_market WHERE id=:id", [":id"=>$x['id']]);
+        $last = $db->single("SELECT height FROM transactions WHERE (public_key=:id or dst=:id2) ORDER by height DESC LIMIT 1", [":id" => $x['id'], ":id2" => $x['id']]);
+        if ($current['height'] - $last > 10000) {
+            $db->run("DELETE FROM assets_market WHERE id=:id", [":id" => $x['id']]);
         }
     }
 }
 
-if ($_config->masternode==true&&!empty($_config->masternode_public_key)&&!empty($_config->masternode_voting_public_key)&&!empty($_config->masternode_voting_private_key)) {
+if ($_config->masternode == true && !empty($_config->masternode_public_key) && !empty($_config->masternode_voting_public_key) && !empty($_config->masternode_voting_private_key)) {
     echo "Masternode votes\n";
-    $r=$db->run("SELECT * FROM masternode WHERE status=1 ORDER by RAND() LIMIT 3");
+    $r = $db->run("SELECT * FROM masternode WHERE status=1 ORDER by RAND() LIMIT 3");
     foreach ($r as $x) {
-        $blacklist=0;
-        $x['ip']=san_ip($x['ip']);
+        $blacklist = 0;
+        $x['ip'] = san_ip($x['ip']);
         echo "Testing masternode: $x[ip]\n";
-        $f=file_get_contents("http://$x[ip]/api.php?q=currentBlock");
+        $f = file_get_contents("http://$x[ip]/api.php?q=currentBlock");
         if ($f) {
-            $res=json_decode($f, true);
-            $res=$res['data'];
-            if ($res['height']<$current['height']-10080) {
-                $blacklist=1;
+            $res = json_decode($f, true);
+            $res = $res['data'];
+            if ($res['height'] < $current['height'] - 10080) {
+                $blacklist = 1;
             }
-            echo "Masternode Height: ".$res['height']."\n";
+            echo "Masternode Height: " . $res['height'] . "\n";
         } else {
             echo "---> Unresponsive\n";
-            $blacklist=1;
+            $blacklist = 1;
         }
 
         if ($blacklist) {
             echo "Blacklisting masternode $x[public_key]\n";
-            $val='0.00000000';
-            $fee='0.00000001';
-            $date=time();
-            $version=106;
-            $msg=san($x['public_key']);
-            $address=$acc->get_address($x['public_key']);
-            $public_key=$_config->masternode_public_key;
-            $private_key=$_config->masternode_voting_private_key;
-            $info=$val."-".$fee."-".$address."-".$msg."-$version-".$public_key."-".$date;
-            $signature=ec_sign($info, $private_key);
-    
+            $val = '0.00000000';
+            $fee = '0.00000001';
+            $date = time();
+            $version = 106;
+            $msg = san($x['public_key']);
+            $address = $acc->get_address($x['public_key']);
+            $public_key = $_config->masternode_public_key;
+            $private_key = $_config->masternode_voting_private_key;
+            $info = $val . "-" . $fee . "-" . $address . "-" . $msg . "-$version-" . $public_key . "-" . $date;
+            $signature = ec_sign($info, $private_key);
 
             $transaction = [
-                "src"        => $acc->get_address($_config->masternode_public_key),
-                "val"        => $val,
-                "fee"        => $fee,
-                "dst"        => $address,
+                "src" => $acc->get_address($_config->masternode_public_key),
+                "val" => $val,
+                "fee" => $fee,
+                "dst" => $address,
                 "public_key" => $public_key,
-                "date"       => $date,
-                "version"    => $version,
-                "message"    => $msg,
-                "signature"  => $signature,
+                "date" => $date,
+                "version" => $version,
+                "message" => $msg,
+                "signature" => $signature,
             ];
-                
+
             $hash = $trx->hash($transaction);
             $transaction['id'] = $hash;
             if (!$trx->check($transaction)) {
@@ -858,7 +860,7 @@ if ($_config->masternode==true&&!empty($_config->masternode_public_key)&&!empty(
                 print("Blacklist transaction already in mempool\n");
             }
             $trx->add_mempool($transaction, "local");
-            $hash=escapeshellarg(san($hash));
+            $hash = escapeshellarg(san($hash));
             system("php propagate.php transaction $hash > /dev/null 2>&1  &");
             echo "Blacklist Hash: $hash\n";
         }

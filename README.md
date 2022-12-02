@@ -1,9 +1,13 @@
 # node
 
-The Steroid4.0 (BPC) masternode.
+The Steroid4.0 (BPC) masternode testnet.
 
 ## Install
+### script install
 
+
+
+### Manual Install
 **Hardware Requirements:**
 ```
 2GB RAM

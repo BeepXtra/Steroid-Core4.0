@@ -32,10 +32,16 @@ class ApiController extends AbstractController {
                      * @url /api/currentblock
                      */
                     $data = $this->sapi->version();
-                    
                 } elseif ($request->url_elements[1] == 'mempoolsize') {
                     $data = $this->sapi->mempoolsize();
+                } elseif ($request->url_elements[1] == 'sanity') {
+                    $data = $this->sapi->sanity();
+                } elseif ($request->url_elements[1] == 'node-info') {
+                    $data = $this->sapi->nodeinfo();
+                } elseif ($request->url_elements[1] == 'masternodes') {
+                    $data = $this->sapi->masternodes();
                 } elseif ($request->url_elements[1] == 'test') {
+                
                     $data = $this->sapi->test('1');
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
@@ -74,9 +80,8 @@ class ApiController extends AbstractController {
                      */
                     if (strlen($request->url_elements[2]) < 32) {
                         return $this->error("Invalid public key");
-                    } 
+                    }
                     $data = $this->sapi->getaddress($request->url_elements[2]);
-                    
                 } elseif ($request->url_elements[1] == 'base58') {
                     /*
                      * @url /api/getaddress/$public_key
@@ -104,22 +109,27 @@ class ApiController extends AbstractController {
                     $currentblock = $this->sapi->sblock->current();
                     $this->sapi->swallet->add($request->url_elements[2], $currentblock['id']);
                     $data = $this->success('Storing wallet attempted - check to verify');
-                } elseif($request->url_elements[1] == 'checkaddress'){ 
+
+                } elseif ($request->url_elements[1] == 'checkaddress') {
                     $data = $this->sapi->checkaddress($request->url_elements[2]);
+                } elseif($request->url_elements[1] == 'assetbalance') {
+                    /*
+                     * @url /api/assetbalance/$asset_address:$wallet_address
+                     */
+                    $data = $this->sapi->assetbalance($request->url_elements[2]);
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
                 }
                 break;
             case 4:
-                 if($request->url_elements[1] == 'checkaddress'){ 
-                    $data = $this->sapi->checkaddress($request->url_elements[2],$request->url_elements[3]);
+                if ($request->url_elements[1] == 'checkaddress') {
+                    $data = $this->sapi->checkaddress($request->url_elements[2], $request->url_elements[3]);
                 } else {
                     $data = $this->error('Incomplete request. Please check documentation', 2);
                 }
-                
                 break;
             case 5:
-                if($request->url_elements[1] == 'checksignature'){
+                if ($request->url_elements[1] == 'checksignature') {
                     /*
                      * @url /api/checksignature/$public_key/$signature/$data
                      */
@@ -155,14 +165,7 @@ class ApiController extends AbstractController {
                 break;
             case 3:
                 if ($request->url_elements[1] == 'send') {
-                    $data = $this->sapi->sendtx($request->url_elements[2]); //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
-                    //HEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
+                    $data = $this->sapi->sendtx($request->url_elements[2]);
                 }
                 break;
             default :
@@ -213,7 +216,7 @@ class ApiController extends AbstractController {
             return $this->error('Something went wrong with your request', 5);
         }
     }
-    
+
     /**
      * GET method.
      * 
@@ -259,5 +262,7 @@ class ApiController extends AbstractController {
         $data['version'] = '1.0.1b';
         return $data;
     }
+
+    
 
 }
