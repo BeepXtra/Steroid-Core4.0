@@ -127,7 +127,7 @@ class STx {
                         _log("Insert into masternode failed", 3);
                         return false;
                     }
-                    $rez=$db->run("UPDATE accounts SET balance=balance-100000 WHERE public_key=:public_key", [':public_key'=>$x['public_key']]);
+                    $rez=$db->run("UPDATE accounts SET balance=balance-250000 WHERE public_key=:public_key", [':public_key'=>$x['public_key']]);
                     if ($rez!=1) {
                         _log("Update masternode balance failed", 3);
                         return false;
@@ -482,7 +482,7 @@ class STx {
                 } elseif ($x['version']==103) {
                     // release and cancel the masternode
                     $db->run("DELETE FROM masternode WHERE public_key=:public_key", [':public_key'=>$x['public_key']]);
-                    $db->run("UPDATE accounts SET balance=balance+100000 WHERE public_key=:public_key", [':public_key'=>$x['public_key']]);
+                    $db->run("UPDATE accounts SET balance=balance+250000 WHERE public_key=:public_key", [':public_key'=>$x['public_key']]);
                 } elseif ($x['version']==104) {
                     // update ip
                     $current_ip=$db->single("SELECT ip FROM masternode WHERE public_key=:public_key", [":public_key"=>$x['public_key']]);
@@ -715,7 +715,7 @@ class STx {
             }
            
         
-            if ($x['version']==100&&$x['val']!=100000) {
+            if ($x['version']==100&&$x['val']!=250000) {
                 _log("The masternode transaction is not 100k", 3);
                 return false;
             } elseif ($x['version']!=100) {
@@ -880,7 +880,7 @@ class STx {
                 return false;
             }
             // check if the asset exists
-            $blockasset=$db->row("SELECT id, price FROM assets WHERE id=:id", [":id"=>san($asset[0])]);
+            $blockasset=$db->row("SELECT id, price, tradable FROM assets WHERE id=:id", [":id"=>san($asset[0])]);
             if (!$blockasset) {
                 _log("Invalid asset", 3);
                 return false;
@@ -935,7 +935,7 @@ class STx {
 
             $blockasset=$db->row("SELECT * FROM assets WHERE id=:id", [":id"=>san($asset[0])]);
             if (!$blockasset||$blockasset['tradable']!=1) {
-                _log("Invalid asset", 3);
+                _log("Invalid asset or not tradable", 3);
                 return false;
             }
             // the sale price per unit has to be at least 0.00000001 or max 1000000 bpc
