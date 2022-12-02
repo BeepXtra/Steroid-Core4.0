@@ -43,7 +43,7 @@ class SApiRequest
                 $this->header = $header;
                 $this->referer = $referer;
                 $this->cookie = $cookie;
-                $this->apiurl = 'https://peer1.steroid.io';
+                $this->apiurl = 'https://galileo.steroid.io';
                 
 	}
     public function init($params)

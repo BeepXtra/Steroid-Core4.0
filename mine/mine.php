@@ -27,7 +27,7 @@ define('_SECURED', 1);
 
 
 //Development tool
-$debug = 1;
+$debug = 0;
 if($debug){
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -73,7 +73,7 @@ if ($q == "info") {
     //if($current_height < 1000000){
             //$diff = $diff*1000000;
     //    }
-
+    
     $recommendation="mine";
     $argon_mem=524288;
     $argon_threads=1;
@@ -108,9 +108,6 @@ if ($q == "info") {
             }
         }
     }
-    
-    
-    
     $res = [
         "difficulty" => $diff,
         "block"      => $current['id'],
@@ -139,6 +136,7 @@ if ($q == "info") {
         $public_key = 'PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCx8yGj2PNN4MTehQGt5t3TXuLUsVBi52qQuoXChcMpsUBHu9khFJjTWLPXM3L6KSjm16kfwjQmvDUQ3URv5qiL9Hy';
         $private_key = 'Lzhp9LopCEmWahwR82MMwt8BfPjANmof31Pxm8gwHnnKsNxfm6bHrpjWv5mrJ8u35Tfy7657ZmQSDHWVvYjwV5ycJKzZM7kkuAcn1H8o1Rk7Z3JzNWVBqMcFhLDyGs1VPBVEf94wRvJEVnPxqo57p4rPaF5qByuQT';
     }
+    
     /*
      * BEGIN MINER STAKE LOGIC 10000 BPC
      */
@@ -148,11 +146,12 @@ if ($q == "info") {
                 [":pk"=>$pk]
             );
     if($bl < 10000){
-        _log("Not enough stake in ".$public_key." : ".$bl,3);
+        _log("Not enough stake in ".$pk." : ".$bl,3);
         print_r(json_encode(api_err("rejected - ensure wallet has at least 10000bpc ")));die;
     } else {
         _log("miner has balance ".$bl,3);
     }
+    
     // check if the miner won the block
     $result = $block->mine($public_key, $nonce, $argon);
     
@@ -174,7 +173,21 @@ if ($q == "info") {
             print_r(json_encode(api_err("rejected")));
         }
     } else {
-        _log("Miner failed to verify argon ".$argon ." ".$nonce, 3);
+        _log("Miner failed to verify argon ".$argon, 3);
+        $current = $block->current();
+        $current_id = $current['id'];
+        $difficulty = $current['difficulty'];
+        
+        $base = $public_key . '-' . $nonce . '-' . $current_id . '-' . $difficulty;
+        //_log("Base " . $base." Argon:".$argon, 3);
+        // check argon's hash validity
+        if (!password_verify($base, $argon)){ 
+            _log("NOT ".$base." / ".$argon, 3);
+        } else {
+            _log("YES ".$base." / ".$argon, 3);
+        }
+        
+        
         print_r(json_encode(api_err("rejected")));
     }
     

@@ -92,6 +92,7 @@ class SBlock {
             if ($votes['endless10reward'] == 1 && $reward < 10) {
                 $reward = 10;
             }
+            $mn_reward = 1;
         }
 
 
@@ -602,7 +603,7 @@ class SBlock {
 
             // avg block time
             $result = ceil($time / $limit);
-            _log("Block time: $result", 3);
+            _log("Block time: $result", 5);
 
             // if larger than 200 sec, increase by 5%
             if ($result > 220) {
@@ -630,7 +631,7 @@ class SBlock {
                 $total_time += $time;
             }
             $result = ceil($total_time / $blks);
-            _log("Block time: $result", 3);
+            _log("Block time: $result", 5);
             // 1 minute blocktime
             if ($type /* && disable for now  $result == false */) {
                 // miner block
@@ -681,7 +682,7 @@ class SBlock {
                 $total_time += $time;
             }
             $result = ceil($total_time / $blks);
-            _log("Block time: $result", 3);
+            _log("Block time: $result", 5);
 
             // if larger than 260 sec, increase by 5%
             if ($result > 60) {
@@ -711,7 +712,7 @@ class SBlock {
         if ($dif > 9223372036854775800) {
             $dif = 9223372036854775800;
         }
-        _log("Difficulty: $dif", 3);
+        _log("Difficulty: $dif", 5);
         return $dif;
     }
 
@@ -1380,6 +1381,8 @@ class SBlock {
 
     // exports the block data, to be used when submitting to other peers
     public function export($id = "", $height = "") {
+        _log("Peer getBlock height=".$height, 5);
+
         if (empty($id) && empty($height)) {
             return false;
         }

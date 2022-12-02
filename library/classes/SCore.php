@@ -13,20 +13,26 @@ class SCore {
     public $lang;
     public $textRTL;
     public $deviceType;
+    public $pool_config;
 
     function __construct() {
+        global $pool_config;
         //If the file is called from the index.php of the global site
         if (file_exists('strdconfig.php')) {
             include_once('strdconfig.php');
-        } else {
+        } elseif(file_exists('../strdconfig.php')) {
             //If it is called from a subdirectory (e.g. /mine/ ). 
             include_once('../strdconfig.php');
+        } else {
+            //if it is called from pool
+            include_once($pool_config['node_path'].'/strdconfig.php');
         }
 
         $this->config = new strdconfig();
         //$this->memcache = new memcache;
         $this->security = 1;
         $this->db = $this->connect_to_database();
+         
     }
 
     ////////////////////////DATABASE FUNCTIONS///////////////////
@@ -176,7 +182,7 @@ class SCore {
     }
 
 //same with the previous one!
-    function add3dots($string, $repl = '...', $limit) {
+    function add3dots($string, $repl = '...', $limit = 0) {
         if (strlen($string) > $limit) {
             return substr($string, 0, $limit) . $repl;
         } else {
