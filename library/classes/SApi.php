@@ -79,6 +79,20 @@ class SApi {
         return array('public_key' => $this->swallet->public_key($id));
     }
 
+    public function getalias($id) {
+        
+        if (!empty($id) && strlen($id) >= 89 && $this->swallet->valid_key($id)) {
+            //get address from publickey
+            $account = $this->swallet->get_address($id);
+        } elseif($this->swallet->valid($id)) {
+            $account = san($id);
+        }
+        if (empty($account)) {
+            return api_err("Invalid address or public_key");
+        }
+        return array("alias" => $this->swallet->account2alias($account));
+    }
+
     public function getaddress($public_key) {
         //echo $this->swallet->get_address($public_key);
         return array('address' => $this->swallet->get_address($public_key));
