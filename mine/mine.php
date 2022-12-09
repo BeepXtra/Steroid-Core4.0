@@ -226,7 +226,7 @@ if ($q == "info") {
 
         // reward transaction and signature
         $reward = $block->reward($height, $data);
-        $msg = '';
+        $msg = 'miner reward';
         $transaction = [
             "src"        => $generator,
             "dst"        => $generator,
