@@ -121,7 +121,7 @@ class SWallet {
     public function valid_alias($id) {
         global $db;
         $orig = strtoupper($id);
-        $banned = ["MERCURY", "DEVS", "DEVELOPMENT", "MARKETING", "MERCURY80", "DEVBPC", "DEVELOPER", "DEVELOPERS", "BPCDEV", "DONATION", "MERCATOX", "OCTAEX", "MERCURY", "STEROID", "STEROID4", "BEEP", "BPC", "BEEPXCOIN", "BEEPIQ", "ESCROW", "OKEX", "BINANCE", "CRYPTOPIA", "HUOBI", "BITFINEX", "HITBTC", "UPBIT", "COINBASE", "KRAKEN", "BITSTAMP", "BITTREX", "POLONIEX"];
+        $banned = ["MERCURY", "DEVS", "DEVELOPMENT", "MARKETING", "MERCURY80", "DEVBPC", "DEVELOPER", "DEVELOPERS", "BPCDEV", "DONATION", "MERCATOX", "OCTAEX", "MERCURY", "STEROID", "STEROID4", "BEEP", "SBPC", "BEEPXCOIN", "BEEPIQ", "ESCROW", "OKEX", "BINANCE", "CRYPTOPIA", "HUOBI", "BITFINEX", "HITBTC", "UPBIT", "COINBASE", "KRAKEN", "BITSTAMP", "BITTREX", "POLONIEX","BEEPCOIN","BEEPXTRA","BXTRA"];
         $id = strtoupper($id);
         $id = san($id);
         if (in_array($id, $banned)) {
