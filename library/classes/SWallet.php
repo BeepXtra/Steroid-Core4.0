@@ -25,8 +25,7 @@ class SWallet {
     }
 
     // inserts just the account without public key
-    public function add_id($id, $block)
-    {
+    public function add_id($id, $block) {
         global $db;
         $bind = [":id" => $id, ":block" => $block];
         $db->run("INSERT ignore INTO accounts SET id=:id, public_key='', block=:block, balance=0", $bind);
@@ -42,14 +41,12 @@ class SWallet {
     }
 
     // checks the ecdsa secp256k1 signature for a specific public key
-    public function check_signature($data, $signature, $public_key)
-    {
+    public function check_signature($data, $signature, $public_key) {
         return ec_verify($data, $signature, $public_key);
     }
 
     // generates a new account and a public/private key pair
-    public function generate_account()
-    {
+    public function generate_account() {
         // using secp256k1 curve for ECDSA
         $args = [
             "curve_name" => "secp256k1",
@@ -77,11 +74,9 @@ class SWallet {
     }
 
     // check the validity of a base58 encoded key. At the moment, it checks only the characters to be base58.
-    public function valid_key($id)
-    {
+    public function valid_key($id) {
         $chars = str_split("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
-        for ($i = 0; $i < strlen($id);
-             $i++) {
+        for ($i = 0; $i < strlen($id); $i++) {
             if (!in_array($id[$i], $chars)) {
                 return false;
             }
@@ -89,9 +84,9 @@ class SWallet {
 
         return true;
     }
+
     //check alias validity
-    public function free_alias($id)
-    {
+    public function free_alias($id) {
         global $db;
         $orig = strtoupper($id);
         $id = strtoupper($id);
@@ -111,8 +106,7 @@ class SWallet {
     }
 
     //check if an account already has an alias
-    public function has_alias($public_key)
-    {
+    public function has_alias($public_key) {
         global $db;
         $public_key = san($public_key);
         $res = $db->single("SELECT COUNT(1) FROM accounts WHERE public_key=:public_key AND alias IS NOT NULL", [":public_key" => $public_key]);
@@ -124,11 +118,10 @@ class SWallet {
     }
 
     //check alias validity
-    public function valid_alias($id)
-    {
+    public function valid_alias($id) {
         global $db;
         $orig = strtoupper($id);
-        $banned = ["MERCURY", "DEVS", "DEVELOPMENT", "MARKETING", "MERCURY80", "DEVBPC", "DEVELOPER", "DEVELOPERS", "BPCDEV", "DONATION", "MERCATOX", "OCTAEX", "MERCURY", "STEROID", "STEROID4", "BEEP", "BPC", "BEEPXCOIN", "BEEPIQ", "ESCROW", "OKEX", "BINANCE", "CRYPTOPIA", "HUOBI", "BITFINEX", "HITBTC", "UPBIT", "COINBASE", "KRAKEN", "BITSTAMP", "BITTREX", "POLONIEX"];
+        $banned = ["MERCURY", "DEVS", "DEVELOPMENT", "MARKETING", "MERCURY80", "DEVBPC", "DEVELOPER", "DEVELOPERS", "BPCDEV", "DONATION", "MERCATOX", "OCTAEX", "MERCURY", "STEROID", "STEROID4", "BEEP", "SBPC", "BEEPXCOIN", "BEEPIQ", "ESCROW", "OKEX", "BINANCE", "CRYPTOPIA", "HUOBI", "BITFINEX", "HITBTC", "UPBIT", "COINBASE", "KRAKEN", "BITSTAMP", "BITTREX", "POLONIEX","BEEPCOIN","BEEPXTRA","BXTRA"];
         $id = strtoupper($id);
         $id = san($id);
         if (in_array($id, $banned)) {
@@ -144,8 +137,7 @@ class SWallet {
     }
 
     //returns the account of an alias
-    public function alias2account($alias)
-    {
+    public function alias2account($alias) {
         global $db;
         $alias = strtoupper($alias);
         $res = $db->single("SELECT id FROM accounts WHERE alias=:alias LIMIT 1", [":alias" => $alias]);
@@ -153,22 +145,20 @@ class SWallet {
     }
 
     //returns the alias of an account
-    public function account2alias($id)
-    {
+    public function account2alias($id) {
         global $db;
         $id = san($id);
         $res = $db->single("SELECT alias FROM accounts WHERE id=:id LIMIT 1", [":id" => $id]);
         return $res;
     }
+
     // check the validity of an address. At the moment, it checks only the characters to be base58 and the length to be >=70 and <=128.
-    public function valid($id)
-    {
+    public function valid($id) {
         if (strlen($id) < 70 || strlen($id) > 128) {
             return false;
         }
         $chars = str_split("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
-        for ($i = 0; $i < strlen($id);
-             $i++) {
+        for ($i = 0; $i < strlen($id); $i++) {
             if (!in_array($id[$i], $chars)) {
                 return false;
             }
@@ -178,8 +168,7 @@ class SWallet {
     }
 
     // returns the current account balance
-    public function balance($id)
-    {
+    public function balance($id) {
         global $db;
         $res = false;
         if ($this->valid_alias($id)) {
@@ -202,29 +191,21 @@ class SWallet {
     }
 
     // returns the account balance - any pending debits from the mempool
-    public function pending_balance($id)
-    {
+    public function pending_balance($id) {
         global $db;
-        $res = $db->single("SELECT balance FROM accounts WHERE id=:id", [":id" => $id]);
+        
+        $res = $db->single("SELECT (IFNULL(SUM(val),0) - IFNULL((SELECT SUM(val+fee) FROM mempool WHERE src=:src),0) ) FROM mempool WHERE dst=:dst", [":src" => $id, ":dst" => $id]);
+        return $res;
         if ($res === false) {
             $res = "0.00000000";
         }
 
-        // if the original balance is 0, no mempool transactions are possible
-        if ($res == "0.00000000") {
-            return $res;
-        }
-        $mem = $db->single("SELECT SUM(val+fee) FROM mempool WHERE src=:id", [":id" => $id]);
-        $rez = $res - $mem;
-        if ($mem === false) {
-            $mem = "0.00000000";
-        }
-        return number_format($mem, 8, ".", "");
+        
+        return $res;
     }
 
     // returns all the transactions of a specific address
-    public function get_transactions($id, $limit = 100)
-    {
+    public function get_transactions($id, $limit = 100) {
         global $db;
         $block = new SBlock();
         $current = $block->current();
@@ -277,8 +258,7 @@ class SWallet {
     }
 
     // returns the transactions from the mempool
-    public function get_mempool_transactions($id)
-    {
+    public function get_mempool_transactions($id) {
         global $db;
         $transactions = [];
         $res = $db->run(
@@ -310,15 +290,13 @@ class SWallet {
     }
 
     // returns the public key for a specific account
-    public function public_key($id)
-    {
+    public function public_key($id) {
         global $db;
         $res = $db->single("SELECT public_key FROM accounts WHERE id=:id", [":id" => $id]);
         return $res;
     }
 
-    public function get_masternode($public_key)
-    {
+    public function get_masternode($public_key) {
         global $db;
         $res = $db->row("SELECT * FROM masternode WHERE public_key=:public_key", [":public_key" => $public_key]);
         if (empty($res['public_key'])) {
@@ -326,4 +304,5 @@ class SWallet {
         }
         return $res;
     }
+
 }

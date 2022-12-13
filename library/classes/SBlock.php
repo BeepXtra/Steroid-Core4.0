@@ -1088,7 +1088,7 @@ class SBlock {
 
         // the hash base for argon
         $base = $public_key . '-' . $nonce . '-' . $current_id . '-' . $difficulty;
-        //_log("Base " . $base." Argon:".$argon, 3);
+        _log("Base " . $base." Argon:".$argon, 3);
         // check argon's hash validity
         if (!password_verify($base, $argon)) {
             _log("--> ARGON VERIFY FAILED - $base - $argon", 3);
@@ -1121,8 +1121,10 @@ class SBlock {
         // divide the number by the difficulty and create the deadline
         $result = gmp_div($duration, $difficulty);
         $limit = $difficulty * 10000;
+        _log("result ".$result." limit ".$limit, 3);
         // if the deadline >0 and <=240, the arguments are valid fora  block win
         if ($result > 0 && $result <= $limit) {
+            _log("YYYYYYYYYYYYYYYYYYYYYYY", 3);
             return true;
         }
         return false;
