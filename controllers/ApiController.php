@@ -17,108 +17,87 @@ class ApiController extends AbstractController {
                 $data = $this->getInfo();
                 break;
             case 2:
-                if ($request->url_elements[1] == 'generate_wallet') {
-                    /*
-                     * @url /api/generate_wallet
-                     */
-                    $data = $this->sapi->generate_account();
-                } elseif ($request->url_elements[1] == 'currentblock') {
-                    /*
-                     * @url /api/currentblock
-                     */
-                    $data = $this->sapi->currentblock();
-                } elseif ($request->url_elements[1] == 'version') {
-                    /*
-                     * @url /api/currentblock
-                     */
-                    $data = $this->sapi->version();
-                } elseif ($request->url_elements[1] == 'mempoolsize') {
-                    $data = $this->sapi->mempoolsize();
-                } elseif ($request->url_elements[1] == 'sanity') {
-                    $data = $this->sapi->sanity();
-                } elseif ($request->url_elements[1] == 'node-info') {
-                    $data = $this->sapi->nodeinfo();
-                } elseif ($request->url_elements[1] == 'masternodes') {
-                    $data = $this->sapi->masternodes();
-                } elseif ($request->url_elements[1] == 'test') {
-                
-                    $data = $this->sapi->test('1');
-                } else {
-                    $data = $this->error('Incomplete request. Please check documentation', 2);
+                $req = $request->url_elements[1];
+                switch ($req) {
+                    case 'generate_wallet':
+                        $data = $this->sapi->generate_account();
+                        break;
+                    case 'currentblock':
+                        $data = $this->sapi->currentblock();
+                        break;
+                    case 'version':
+                        $data = $this->sapi->version();
+                        break;
+                    case 'mempoolsize':
+                        $data = $this->sapi->mempoolsize();
+                        break;
+                    case 'sanity':
+                        $data = $this->sapi->sanity();
+                        break;
+                    case 'node-info':
+                        $data = $this->sapi->nodeinfo();
+                        break;
+                    case 'masternodes':
+                        $data = $this->sapi->masternodes();
+                        break;
+                    default:
+                        $data = $this->error('Incomplete request. Please check documentation', 2);
+                        break;
                 }
                 break;
             case 3:
-                if ($request->url_elements[1] == 'getbalance') {
-                    /*
-                     * @url /api/getbalance/$address
-                     */
-                    $data = $this->sapi->getbalance($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'getpendingbalance') {
-                    /*
-                     * @url /api/getpendingbalance/$public_key
-                     */
-                    $data = $this->sapi->getpendingbalance($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'gettransactions') {
-                    /*
-                     * @url /api/getpendingbalance/$address
-                     */
-                    $data = $this->sapi->gettransactions($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'gettransaction') {
-                    /*
-                     * @url /api/gettransaction/$id
-                     */
-                    $data = $this->sapi->gettransaction($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'getpublickey') {
-                    /*
-                     * @url /api/getpublickey/$id
-                     */
-
-                    $data = $this->sapi->getpublickey($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'getaddress') {
-                    /*
-                     * @url /api/getaddress/$public_key
-                     */
-                    if (strlen($request->url_elements[2]) < 32) {
-                        return $this->error("Invalid public key");
-                    }
-                    $data = $this->sapi->getaddress($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'base58') {
-                    /*
-                     * @url /api/getaddress/$public_key
-                     */
-                    $data = $this->sapi->base58($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'getblock') {
-                    /*
-                     * @url /api/getblock/$height
-                     */
-                    $data = $this->sapi->getblock($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'getblocktransactions') {
-                    /*
-                     * @url /api/getblock/$height
-                     */
-                    $data = $this->sapi->getblocktransactions($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'send') {
-                    /*
-                     * @url /api/send/$data...
-                     */
-                    $data = $this->sapi->send($request->url_elements[2]);
-                } elseif ($request->url_elements[1] == 'propwallet') {
-                    /*
-                     * @url /api/propwallet/$public_key
-                     */
-                    $currentblock = $this->sapi->sblock->current();
-                    $this->sapi->swallet->add($request->url_elements[2], $currentblock['id']);
-                    $data = $this->success('Storing wallet attempted - check to verify');
-
-                } elseif ($request->url_elements[1] == 'checkaddress') {
-                    $data = $this->sapi->checkaddress($request->url_elements[2]);
-                } elseif($request->url_elements[1] == 'assetbalance') {
-                    /*
-                     * @url /api/assetbalance/$asset_address:$wallet_address
-                     */
-                    $data = $this->sapi->assetbalance($request->url_elements[2]);
-                } else {
-                    $data = $this->error('Incomplete request. Please check documentation', 2);
+                $req = $request->url_elements[1];
+                switch ($req) {
+                    case 'getbalance':
+                        $data = $this->sapi->getbalance($request->url_elements[2]);
+                        break;
+                    case 'getpendingbalance':
+                        $data = $this->sapi->getpendingbalance($request->url_elements[2]);
+                        break;
+                    case 'gettransactions':
+                        $data = $this->sapi->gettransactions($request->url_elements[2]);
+                        break;
+                    case 'gettransaction':
+                        $data = $this->sapi->gettransaction($request->url_elements[2]);
+                        break;
+                    case 'getpublickey':
+                        $data = $this->sapi->getpublickey($request->url_elements[2]);
+                        break;
+                    case 'getalias':
+                        $data = $this->sapi->getalias($request->url_elements[2]);
+                        break;
+                    case 'getaddress':
+                        (strlen($request->url_elements[2]) < 32) ? $data = $this->error("Invalid public key") : $data = $this->sapi->getaddress($request->url_elements[2]);
+                        break;
+                    case 'base58':
+                        $data = $this->sapi->base58($request->url_elements[2]);
+                        break;
+                    case 'getblock':
+                        $data = $this->sapi->getblock($request->url_elements[2]);
+                        break;
+                    case 'getblocktransactions':
+                        $data = $this->sapi->getblocktransactions($request->url_elements[2]);
+                        break;
+                    case 'send':
+                        $data = $this->sapi->send($request->url_elements[2]);
+                        break;
+                    case 'propwallet':
+                        $currentblock = $this->sapi->sblock->current();
+                        $this->sapi->swallet->add($request->url_elements[2], $currentblock['id']);
+                        $data = $this->success('Storing wallet attempted - check to verify');
+                        break;
+                    case 'checkaddress':
+                        $data = $this->sapi->checkaddress($request->url_elements[2]);
+                        break;
+                    case 'assetbalance':
+                        $data = $this->sapi->assetbalance($request->url_elements[2]);
+                        break;
+                    case 'getblocktransactions':
+                        $data = $this->sapi->getblocktransactions($request->url_elements[2]);
+                        break;
+                    default:
+                        $data = $this->error('Incomplete request. Please check documentation', 2);
+                        break;
                 }
                 break;
             case 4:
@@ -262,7 +241,5 @@ class ApiController extends AbstractController {
         $data['version'] = '1.0.1b';
         return $data;
     }
-
-    
 
 }
