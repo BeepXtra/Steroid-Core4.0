@@ -392,7 +392,7 @@ class SApi {
         if (empty($account)) {
             return api_err("Invalid address or public_key");
         }
-        $res = $db->run("SELECT * FROM assets WHERE id=:id", [":id" => $account]);
+        $res = $db->run("SELECT b.alias, a.* FROM assets as a LEFT JOIN accounts as b ON a.id = b.id WHERE a.id=:id", [":id" => $account]);
         
         if (!$res) {
             return array('asset' => 'No asset found');
