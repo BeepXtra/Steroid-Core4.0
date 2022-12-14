@@ -383,6 +383,11 @@ class SApi {
     
     public function asset($id) {
         global $db;
+        if ($this->swallet->valid_alias($id)) {
+            //Check using alias
+            $id = strtoupper($id);
+            $id = $db->single("SELECT id FROM accounts WHERE alias=:id", [":id" => $id]);
+        }
         if (!empty($id) && strlen($id) >= 89 && $this->swallet->valid_key($id)) {
             //get address from publickey
             $account = $this->swallet->get_address($id);
