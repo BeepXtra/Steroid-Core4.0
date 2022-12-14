@@ -92,6 +92,9 @@ class ApiController extends AbstractController {
                     case 'assetbalance':
                         $data = $this->sapi->assetbalance($request->url_elements[2]);
                         break;
+                    case 'asset':
+                        $data = $this->sapi->asset($request->url_elements[2]);
+                        break;
                     case 'getblocktransactions':
                         $data = $this->sapi->getblocktransactions($request->url_elements[2]);
                         break;
