@@ -378,7 +378,27 @@ class SApi {
         if (!$res) {
             return array('mempoolsize' => 0);
         }
-        return json_encode(api_echo($res));
+        return api_echo($res);
+    }
+    
+    public function asset($id) {
+        global $db;
+        if (!empty($id) && strlen($id) >= 89 && $this->swallet->valid_key($id)) {
+            //get address from publickey
+            $account = $this->swallet->get_address($id);
+        } elseif($this->swallet->valid($id)) {
+            $account = san($id);
+        }
+        if (empty($account)) {
+            return api_err("Invalid address or public_key");
+        }
+        $res = $db->run("SELECT * FROM assets WHERE id=:id", [":id" => $account]);
+        
+        if (!$res) {
+            return array('asset' => 'No asset found');
+        }
+        
+        return $res;
     }
 
     public function randomnumber($height, $max, $min = 1, $seed = '') {
