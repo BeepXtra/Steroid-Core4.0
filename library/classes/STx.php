@@ -162,9 +162,9 @@ class STx {
                 $t=json_decode($x['message'], true);
                 $db->run(
                     "UPDATE assets_balance SET balance=balance-:balance WHERE account=:account and asset=:asset",
-                    [":account"=>$x['dst'], ":asset"=>san($t[0]), ":balance"=>intval($t[1])]
+                    [":account"=>$x['dst'], ":asset"=>san($t[0]), ":balance"=>$t[1]]
                 );
-                $db->run("UPDATE assets_balance SET balance=balance+:balance WHERE account=:account and asset=:asset", [":account"=>$x['src'], ":asset"=>san($t[0]), ":balance"=>intval($t[1])]);
+                $db->run("UPDATE assets_balance SET balance=balance+:balance WHERE account=:account and asset=:asset", [":account"=>$x['src'], ":asset"=>san($t[0]), ":balance"=>$t[1]]);
             } elseif ($x['version']==52) {
                 $t=json_decode($x['message'], true);
                 if ($t[4]=="ask") {
@@ -176,7 +176,7 @@ class STx {
                     $db->run("UPDATE assets_balance SET balance=balance+:val WHERE account=:account AND asset=:asset", [
                         ":account"=>$x['src'],
                         ":asset"=>san($t[0]),
-                        ":val"=>intval($t[2])
+                        ":val"=>$t[2]
                         ]);
                 } else {
                     $val=number_format($t[2]*$t[1], 8, '.', '');
@@ -192,7 +192,7 @@ class STx {
                             $db->run("UPDATE assets_balance SET balance=balance-:val WHERE account=:account AND asset=:asset", [
                                 ":account"=>$x['src'],
                                 ":asset"=>san($order['asset']),
-                                ":val"=>intval($remaining)
+                                ":val"=>$remaining
                                 ]);
                         } else {
                             $val=number_format($order['price']*$remaining, 8, '.', '');
@@ -205,11 +205,11 @@ class STx {
                 //nothing to be done
             } elseif ($x['version']==55) {
                 // the message stores the increment value
-                $plus=intval($x['message']);
+                $plus=$x['message'];
                 $db->run("UPDATE assets_balance SET balance=balance-:plus WHERE account=:account AND asset=:asset", [":account"=>$x['src'], ":asset"=>$x['src'], ":plus"=>$plus]);
             } elseif ($x['version']==58) {
                 // the message stores the number of units
-                $use=intval($x['message']);
+                $use=$x['message'];
                 // we stored the bid order id in the public key field and the ask in the dst field
                 $db->run("UPDATE assets_market SET val_done=val_done-:done WHERE id=:id", [":id"=>$x['public_key'], ":done"=>$use]);
                 $db->run("UPDATE assets_market SET val_done=val_done-:done WHERE id=:id", [":id"=>$x['dst'], ":done"=>$use]);
@@ -517,9 +517,9 @@ class STx {
             $t=json_decode($x['message'], true);
             $db->run(
                 "INSERT into assets_balance SET account=:account, asset=:asset, balance=:balance ON DUPLICATE KEY UPDATE balance=balance+:balance2",
-                [":account"=>$x['dst'], ":asset"=>san($t[0]), ":balance"=>intval($t[1]), ":balance2"=>intval($t[1])]
+                [":account"=>$x['dst'], ":asset"=>san($t[0]), ":balance"=>$t[1], ":balance2"=>$t[1]]
             );
-            $db->run("UPDATE assets_balance SET balance=balance-:balance WHERE account=:account and asset=:asset", [":account"=>$x['src'], ":asset"=>san($t[0]), ":balance"=>intval($t[1])]);
+            $db->run("UPDATE assets_balance SET balance=balance-:balance WHERE account=:account and asset=:asset", [":account"=>$x['src'], ":asset"=>san($t[0]), ":balance"=>$t[1]]);
         } elseif ($x['version']==52) {
             // market order
             $t=json_decode($x['message'], true);
@@ -538,7 +538,7 @@ class STx {
                 ":asset" => san($t[0]),
                 ":price" => number_format($t[1], 8, '.', ''),
                 ":date" => $x['date'],
-                ":val"=>intval($t[2]),
+                ":val"=>$t[2],
                 ":type" => $type,
                 ":cancel" => intval($t[3])
         ];
@@ -548,7 +548,7 @@ class STx {
                 $db->run("UPDATE assets_balance SET balance=balance-:val WHERE account=:account AND asset=:asset", [
                     ":account"=>$x['src'],
                     ":asset"=>san($t[0]),
-                    ":val"=>intval($t[2])
+                    ":val"=>$t[2]
                     ]);
             } else {
                 $val=number_format($t[2]*$t[1], 8, '.', '');
@@ -564,7 +564,7 @@ class STx {
                         $db->run("UPDATE assets_balance SET balance=balance+:val WHERE account=:account AND asset=:asset", [
                             ":account"=>$x['src'],
                             ":asset"=>san($order['asset']),
-                            ":val"=>intval($remaining)
+                            ":val"=>$remaining
                             ]);
                     } else {
                         $val=number_format($order['price']*$remaining, 8, '.', '');
@@ -607,7 +607,7 @@ class STx {
             }
         } elseif ($x['version']==55) {
             // increase max supply
-            $plus=intval($x['message']);
+            $plus=$x['message'];
             $db->run("INSERT into assets_balance SET balance=:plus, account=:account, asset=:asset ON DUPLICATE KEY UPDATE balance=balance+:plus2", [":account"=>$x['src'], ":asset"=>$x['src'], ":plus"=>$plus, ":plus2"=>$plus]);
         }
 
@@ -885,7 +885,7 @@ class STx {
                 _log("Invalid asset", 3);
                 return false;
             }
-            // minimum 1 unit is transfered
+            // minimum 0.00000001 unit is transfered
             if (!is_numeric($asset[1]) || $asset[1]<0) {
                 _log("Invalid amount", 3);
                 return false;
@@ -944,7 +944,7 @@ class STx {
                 return false;
             }
             // integer min 1 and max 1000000
-            if (intval($asset[2])!=$asset[2]||$asset[2]<1||$asset[2]>1000000) {
+            if ($asset[2]!=$asset[2]||$asset[2]<1||$asset[2]>1000000) {
                 _log("Invalid asset value", 3);
                 return false;
             }
@@ -1000,7 +1000,7 @@ class STx {
         }
 
         if ($x['version']==55) {
-            $plus=intval($x['message']);
+            $plus=$x['message'];
             if ($x['message']!=$plus) {
                 _log("Invalid asset value", 3);
                 return false;
