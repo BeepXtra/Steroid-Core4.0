@@ -886,7 +886,7 @@ class STx {
                 return false;
             }
             // minimum 1 unit is transfered
-            if (intval($asset[1])!=$asset[1]||$asset[1]<1) {
+            if (intval($asset[1])!=$asset[1]||$asset[1]<0) {
                 _log("Invalid amount", 3);
                 return false;
             }
