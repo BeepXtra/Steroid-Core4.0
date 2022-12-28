@@ -222,6 +222,7 @@ class SWallet {
 
         $transactions = [];
         foreach ($res as $x) {
+            if($x['version'] != 57){
             $trans = [
                 "block" => $x['block'],
                 "height" => $x['height'],
@@ -252,6 +253,7 @@ class SWallet {
             }
             ksort($trans);
             $transactions[] = $trans;
+        }
         }
 
         return $transactions;
