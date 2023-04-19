@@ -892,7 +892,7 @@ class STx {
             }
             //make sure the wallet has enough asset units
             $balance=$db->single("SELECT balance FROM assets_balance WHERE account=:account AND asset=:asset", [":account"=>$src, ":asset"=>san($asset[0])]);
-            if ($balance<$asset[1]) {
+            if (($balance - $asset[1]) < 0) {
                 _log("Not enough balance", 3);
                 return false;
             }
