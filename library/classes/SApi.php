@@ -467,7 +467,7 @@ class SApi {
         //strd db version
         $dbVersion = $db->single("SELECT val FROM config WHERE cfg='dbversion'");
         //peer hostname
-        $hostname = $db->single("SELECT val FROM config WHERE cfg='hostname'");
+        $hostname = $_config->hostname;
         //number of active wallets
         $acc = $db->single("SELECT COUNT(1) FROM accounts");
         //number of transactions recorded

@@ -735,10 +735,10 @@ class SBlock {
             return number_format($platform->config->premine, 8, '.', '');
         }
         // starting reward
-        $reward = 1;
+        $reward = 10;
         // decrease by 1% each 10800 blocks (approx 1 month)
         $factor = floor($id / 10800) / 100;
-        $reward -= $reward * $factor;
+        $reward = $reward * $factor;
 
         if ($reward < 0) {
             $reward = 0;
