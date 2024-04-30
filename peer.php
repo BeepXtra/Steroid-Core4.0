@@ -1,9 +1,9 @@
 <?php
 /*
 The MIT License (MIT)
-Copyright (c) 2018 BeepXtra
+Copyright (c) 2018 AroDev
 
-www.steroid.io
+www.arionum.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
