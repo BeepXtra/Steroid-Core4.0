@@ -597,6 +597,20 @@ class SApi {
 
         return array('difficulty' => $diff);
     }
+    
+    public function totalsupply(){
+        global $db;
+        $r = $db->run("SELECT current_supply FROM wallet_stats WHERE 1");
+        print_r($r[0]['current_supply']);
+        die;
+    }
+    
+    public function circsupply(){
+        global $db;
+        $r = $db->run("SELECT sum(balance) as circulation FROM `accounts` WHERE id NOT IN ('3G6XrZGoBwbBRG2WpXpvxGWcPiAovAiYyFAAVusSGXmeDpwe4o7iHmabyDRX1QzWL7rsGQcBfqAM2d13erw1Sthv','5XXSy8akLrRJec67UVRiNmSntkwzesJWQp9c29t3sMZfJnqUfn8FcMtiZ8vs8puvJPQYzypNv1WHUyLqFx3XM1Uz','3CQBwp1UfULgpN6ei5dFkHXzgFxMzuAjYAfBTtgJG4iMz6D3qqQ2HFEa6gpnFpZpwyaHstrxFvHceLEtsSd9HTqC') AND public_key != ''");
+        print_r($r[0]['circulation']);
+        die;
+    }
 
 }
 

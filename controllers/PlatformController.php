@@ -2,9 +2,6 @@
 
 class PlatformController extends AbstractController {
 
-    private $BeepCountry = null;
-    private $BeepProduct = null;
-
     public function __construct() {
         parent::__construct();
 
@@ -61,8 +58,11 @@ class PlatformController extends AbstractController {
             case 2:
                 $model = $this->getModel($request);
                 switch ($model) {
-                    case 'test':
-                        $data = $this->sapi->test($request->url_elements[2]);
+                    case 'totalsupply':
+                        $data = $this->sapi->totalsupply();
+                        break;
+                    case 'circulatingsupply':
+                        $data = $this->sapi->circsupply();
                         break;
                     default:
                         //error

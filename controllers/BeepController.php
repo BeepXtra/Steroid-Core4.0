@@ -44,25 +44,13 @@ class BeepController extends AbstractController {
     protected function getRequest($request) {
         switch (count($request->url_elements)) {
             case 1:
-                if ($request->url_elements[1] == 'tos') {
-                    $data = $this->getTos($request);
-                } else {
-                    $data = $this->error('Please specify a resource to post',1);
-                }
+                $data = $this->error('Incomplete request. Please check documentation',2);
                 break;
             case 2:
-                if ($request->url_elements[1] == 'test') {
-                    $data = $this->success($request->url_elements);
-                } else {
-                    $data = $this->error('Incomplete request. Please check documentation',2);
-                }
+                $data = $this->error('Incomplete request. Please check documentation',2);
                 break;
             case 3:
-                if ($request->url_elements[1] == 'tos') {
-                    $data = $this->getTos($request);
-                } else {
-                    $data = $this->error('Incomplete request. Please check documentation',2);
-                }
+                $data = $this->error('Incomplete request. Please check documentation',2);
                 break;
             case 4:
                 $data = $this->error('Incomplete request. Please check documentation',2);
@@ -92,7 +80,7 @@ class BeepController extends AbstractController {
                 $data = $this->error('Incomplete request. Please check documentation',2);
                 break;
             case 4:
-                $data = $this->prepareEmail($request);
+                $data = $this->error('Incomplete request. Please check documentation',2);
                 break;
             case 5:
                 $data = $this->error('Incomplete request. Please check documentation',2);
@@ -157,32 +145,5 @@ class BeepController extends AbstractController {
             return $this->error('Something went wrong with your request',5);
         }
     }
-
-    protected function prepareEmail($request){
-        echo '<pre>';
-        print_r($request); 
-    }
-    
-    protected function getTos($request){
-        if(isset($request->url_elements[2]) && is_numeric($request->url_elements[2])){
-            //check country
-            switch($request->url_elements[2]){
-                case 59:
-                    $data = array(file_get_contents('tos.php'));
-                    break;
-                default:
-                    $data = array(file_get_contents('tos.php'));
-                    break;
-            }
-        } else {
-            $data = array(file_get_contents('tos.php'));
-        }
-        
-        return $data;
-                    
-                
-    }
-
-
 
 }
