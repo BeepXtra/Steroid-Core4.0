@@ -92,9 +92,11 @@ if ($q == "peer") {
     // if it's already peered, only repeer on request
     
     $res = $db->single(
-        "SELECT COUNT(1) FROM peers WHERE hostname=:hostname AND ip=:ip",
+        "SELECT COUNT(1) FROM peers WHERE hostname='".$hostname."' AND ip='".$ip."'",
         [":hostname" => $hostname, ":ip" => $ip]
     );
+    $stat = ($res)?'success':'fail';
+    _log('RES RESULT '.$stat.' HOSTNAME'.$hostname.' IP'.$ip);
     if ($res == 1) {
         if ($data['repeer'] == 1) {
             $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname]);
