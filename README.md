@@ -16,11 +16,11 @@ The Steroid4.0 (BPC) masternode testnet.
 ```
 **Requirements:**
 
-- PHP 7.2
+- PHP >= 7.2
   - PDO extension
   - GMP extension
   - BCMath extension
-- MySQL/MariaDB
+- MySQL/MariaDB >= 5.7.x 
 
 1. Install MySQL or MariaDB and create a database and a user.
 2. Rename `include/config-sample.inc.php` to  `include/config.inc.php` and set the DB login data
@@ -35,9 +35,14 @@ The node should have a public IP and be accessible over internet.
 
 ## Links
 
-- Official website: https://www.steroid.io
-- Block explorer: https://explorer.steroid.io
-- Blog: https://blog.steroid.io
+- [Official website](https://www.steroid.io)
+- [Block explorer](https://explorer.steroid.io) 
+- [BTC Talk Thread](https://bitcointalk.org/index.php?topic=4721744)
+
+## 3rd Party Integrations
+- [BeepXtra Loyalty Systems](https://outlets.beepxtra.com/)
+- [BeepWallet](https://wallet.beepxtra.com/)
+- MerchD AI (No link - proprietory private project)
 
 If you'd like to support the Steroid4.0 development please contact us
-devteam@steroid.io
+devteam@exevior.com
