@@ -1174,7 +1174,10 @@ class SBlock {
                 }
 
                 // prepare total balance
-                $balance[$x['src']] += $x['val'] + $x['fee'];
+                (!isset($balance[$x['src']]))?$balance[$x['src']] = $x['val'] + $x['fee']:$balance[$x['src']] += $x['val'] + $x['fee'];
+                    
+                
+                
 
                 // check if the transaction is already on the blockchain
                 if ($db->single("SELECT COUNT(1) FROM transactions WHERE id=:id", [":id" => $x['id']]) > 0) {

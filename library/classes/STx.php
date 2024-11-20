@@ -312,10 +312,10 @@ class STx {
                     _log("$x[id] - Transaction Check Failed");
                     continue;
                 }
-                if(!isset($balance[$x['src']])){
-                    $balance[$x['src']] = 0;
-                }
-                $balance[$x['src']] += $x['val'] + $x['fee'];
+                
+                // prepare total balance
+                (!isset($balance[$x['src']]))?$balance[$x['src']] = $x['val'] + $x['fee']:$balance[$x['src']] += $x['val'] + $x['fee'];
+                
                 if ($db->single("SELECT COUNT(1) FROM transactions WHERE id=:id", [":id" => $x['id']]) > 0) {
                     _log("$x[id] - Duplicate transaction");
                     continue; //duplicate transaction
