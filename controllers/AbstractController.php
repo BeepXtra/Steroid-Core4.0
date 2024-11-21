@@ -50,7 +50,7 @@ abstract class AbstractController {
         //print_r($this->request);
         //To develop for extra api access and security verifications
         
-        if (count($app) > 1 && $app == 'disabled') {
+        if ($app && count($app) > 1 && $app == 'disabled') {
             $query = "SELECT a.* ,b.id as module_id, b.module, c.get,c.post,c.put,c.delete,c.other
                     FROM api_apps as a
                     LEFT JOIN api_modules as b
