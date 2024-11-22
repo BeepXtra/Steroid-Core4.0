@@ -41,7 +41,7 @@ if (floatval(phpversion()) < 7.2) {
 
 
 // update the db schema, on every git pull or initial install
-if (file_exists($platform->config->root_folder . "/tmp/db-update")) {
+if (file_exists($platform->config->root_folder . "/tmp/dbupdate")) {
 
     //checking if the server has at least 2GB of ram
     $ram = file_get_contents("/proc/meminfo");
