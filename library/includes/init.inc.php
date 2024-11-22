@@ -51,13 +51,13 @@ if (file_exists($platform->config->root_folder . "/tmp/dbupdate")) {
     if ($ram < 1700000) {
         die("The node requires at least 2 GB of RAM");
     }
-    $res = unlink("tmp/db-update");
+    $res = unlink("tmp/dbupdate");
     if ($res) {
         echo "Updating db schema! Please refresh!\n";
         require_once __DIR__ . '/schema.inc.php';
         exit;
     }
-    echo "Could not access the tmp/db-update file. Please give full permissions to this file\n";
+    echo "Could not access the tmp/dbupdate file. Please give full permissions to this file\n";
 }
 // Getting extra configs from the database
 $query = $db->run("SELECT cfg, val FROM config");
