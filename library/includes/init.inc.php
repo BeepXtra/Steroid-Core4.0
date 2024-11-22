@@ -1,16 +1,17 @@
 <?php
+
 // BPC version
 define("VERSION", "1.3.0-beta");
 // UTC timezone by default
 date_default_timezone_set("UTC");
 
-require_once __DIR__.'/Exception.php';
-require_once __DIR__.'/functions.inc.php';
-require_once __DIR__.'/Blacklist.php';
-require_once __DIR__.'/InitialPeers.php';
-require_once $platform->config->root_folder.'/library/classes/SBlock.php';
-require_once $platform->config->root_folder.'/library/classes/SWallet.php';
-require_once $platform->config->root_folder.'/library/classes/STx.php';
+require_once __DIR__ . '/Exception.php';
+require_once __DIR__ . '/functions.inc.php';
+require_once __DIR__ . '/Blacklist.php';
+require_once __DIR__ . '/InitialPeers.php';
+require_once $platform->config->root_folder . '/library/classes/SBlock.php';
+require_once $platform->config->root_folder . '/library/classes/SWallet.php';
+require_once $platform->config->root_folder . '/library/classes/STx.php';
 
 if ($platform->config->db_password == "ENTER-DB-PASS") {
     die("Please update your config file and set your db password");
@@ -40,29 +41,32 @@ if (floatval(phpversion()) < 7.2) {
 
 
 // update the db schema, on every git pull or initial install
-if (file_exists($platform->config->root_folder."/tmp/db-update")) {
-    
+if (file_exists($platform->config->root_folder . "/tmp/db-update")) {
+
     //checking if the server has at least 2GB of ram
-    $ram=file_get_contents("/proc/meminfo");
-    $ramz=explode("MemTotal:",$ram);
-    $ramb=explode("kB",$ramz[1]);
-    $ram=intval(trim($ramb[0]));
-    if($ram<1700000) {
+    $ram = file_get_contents("/proc/meminfo");
+    $ramz = explode("MemTotal:", $ram);
+    $ramb = explode("kB", $ramz[1]);
+    $ram = intval(trim($ramb[0]));
+    if ($ram < 1700000) {
         die("The node requires at least 2 GB of RAM");
     }
     $res = unlink("tmp/db-update");
     if ($res) {
         echo "Updating db schema! Please refresh!\n";
-        require_once __DIR__.'/schema.inc.php';
+        require_once __DIR__ . '/schema.inc.php';
         exit;
     }
     echo "Could not access the tmp/db-update file. Please give full permissions to this file\n";
 }
 // Getting extra configs from the database
 $query = $db->run("SELECT cfg, val FROM config");
-foreach ($query as $res) {
-    $platform->config->{$res['cfg']} = trim($res['val']);
+if ($query) {
+    foreach ($query as $res) {
+        $platform->config->{$res['cfg']} = trim($res['val']);
+    }
 }
+
 
 // nothing is allowed while in maintenance
 if ($platform->config->maintenance == 1) {
@@ -82,10 +86,10 @@ if ($platform->config->testnet == true) {
 }
 
 // current hostname
-if(!isset($_SERVER['HTTP_HOST'])){
+if (!isset($_SERVER['HTTP_HOST'])) {
     $hostname = 'localhost';
 } else {
-    $hostname = (!empty($_SERVER['HTTPS']) ? 'https' : 'http')."://".san_host($_SERVER['HTTP_HOST']);
+    $hostname = (!empty($_SERVER['HTTPS']) ? 'https' : 'http') . "://" . san_host($_SERVER['HTTP_HOST']);
 }
 
 // set the hostname to the current one
