@@ -82,12 +82,10 @@ if ($dbversion == 0) {
     $db->run("ALTER TABLE `accounts`
       ADD PRIMARY KEY (`id`),
       ADD KEY `accounts` (`block`),
-      ADD KEY `alias` (`alias`),
       ADD KEY `pubkey` (`public_key`(767));");
 
     $db->run("ALTER TABLE `blocks`
       ADD PRIMARY KEY (`id`),
-      ADD UNIQUE KEY `height` (`height`),
       ADD UNIQUE KEY `height` (`height`),
       ADD KEY `date_index` (`date`);");
 
@@ -141,6 +139,7 @@ if ($dbversion == 5) {
 if ($dbversion == 6) {
     $db->run("ALTER TABLE `peers` ADD `stuckfail` TINYINT(4) NOT NULL DEFAULT '0' AFTER `fails`, ADD INDEX (`stuckfail`); ");
     $db->run("ALTER TABLE `accounts` ADD `alias` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL AFTER `balance`; ");
+    $db->run("ALTER TABLE `accounts` ADD KEY `alias` (`alias`)");
     $dbversion++;
 }
 if ($dbversion == 7) {
@@ -263,9 +262,9 @@ if ($dbversion == 12) {
     //
     // Structure for view `blockstats`
     //
-    $db->run>("DROP TABLE IF EXISTS `blockstats`;
-        DROP VIEW IF EXISTS `blockstats`;
-        CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER 
+    $db->run("DROP TABLE IF EXISTS `blockstats`;");
+    $db->run("DROP VIEW IF EXISTS `blockstats`;");
+    $db->run("CREATE OR REPLACE ALGORITHM=UNDEFINED
         VIEW `blockstats`  
         AS SELECT (`a`.`date` - `b`.`date`) AS `blocktime`,
             `a`.`height` AS `height`,
@@ -283,9 +282,9 @@ if ($dbversion == 12) {
     // Stand-in structure for view `wallet_stats`
     // (See below for the actual view)
     //
-    $db - run("DROP TABLE IF EXISTS `wallet_stats`;
-        DROP VIEW IF EXISTS `wallet_stats`;
-        CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER 
+    $db->run("DROP TABLE IF EXISTS `wallet_stats`;");
+    $db->run("DROP VIEW IF EXISTS `wallet_stats`;");
+    $db->run("CREATE OR REPLACE ALGORITHM=UNDEFINED 
         VIEW `wallet_stats`  
         AS SELECT sum(`accounts`.`balance`) AS `current_supply`,
             count(`accounts`.`id`) AS `number_of_wallets`,
@@ -297,9 +296,9 @@ if ($dbversion == 12) {
     //
     // Structure for view `blockstats`
     //
-    $db->run("DROP TABLE IF EXISTS `blockstats`;
-        DROP VIEW IF EXISTS `blockstats`;
-        CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER 
+    $db->run("DROP TABLE IF EXISTS `blockstats`;");
+    $db->run("DROP VIEW IF EXISTS `blockstats`;");
+    $db->run("CREATE OR REPLACE ALGORITHM=UNDEFINED 
         VIEW `blockstats`  
         AS SELECT (`a`.`date` - `b`.`date`) AS `blocktime`,
             `a`.`height` AS `height`,
@@ -316,8 +315,8 @@ if ($dbversion == 12) {
     // Constraints for table `transactions`
     //
     $db->run("ALTER TABLE `transactions`
-        ADD CONSTRAINT `height` FOREIGN KEY (`height`) REFERENCES `blocks` (`height`);
-    COMMIT;");
+        ADD CONSTRAINT `height` FOREIGN KEY (`height`) REFERENCES `blocks` (`height`);");
+    //$db->run("COMMIT;");
     
     $dbversion++;
 }
@@ -328,4 +327,4 @@ if ($dbversion == 12) {
 if ($dbversion != $_config->dbversion) {
     $db->run("UPDATE config SET val=:val WHERE cfg='dbversion'", [":val" => $dbversion]);
 }
-$db->commit();
+//$db->commit();
