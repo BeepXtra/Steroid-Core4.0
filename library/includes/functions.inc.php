@@ -316,10 +316,10 @@ function url_get_contents($Url) {
     }
     $agent = 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)';
     $ch = curl_init();
-    curl_setopt($curl, CURLOPT_USERAGENT, $agent);
+    curl_setopt($ch, CURLOPT_USERAGENT, $agent);
     curl_setopt($ch, CURLOPT_URL, $Url);
-    curl_setopt($conn, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($conn, CURLOPT_FRESH_CONNECT,  true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_FRESH_CONNECT,  true);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $output = curl_exec($ch);
     curl_close($ch);
