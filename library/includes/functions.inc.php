@@ -294,7 +294,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
     $context = stream_context_create($opts);
 
     $result = file_get_contents($url, false, $context);*/
-    $result = url_get_contents($Url);
+    $result = url_get_contents($url);
     
     if ($_config->debug) {
         _log("Peer response: {$result}");
