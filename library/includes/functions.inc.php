@@ -281,7 +281,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
        _log("Peer post_data: {$postdata}") ;
      
     }
-    $opts = [
+    /*$opts = [
         'http' =>
             [
                 'timeout' => $timeout,
@@ -293,7 +293,8 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
   
     $context = stream_context_create($opts);
 
-    $result = file_get_contents($url, false, $context);
+    $result = file_get_contents($url, false, $context);*/
+    $result = url_get_contents($Url);
     
     if ($_config->debug) {
         _log("Peer response: {$result}");
@@ -306,6 +307,23 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
     }
  
     return $res['data'];
+}
+
+// get content of url using curl
+function url_get_contents($Url) {
+    if (!function_exists('curl_init')){ 
+        die('CURL is not installed!');
+    }
+    $agent = 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)';
+    $ch = curl_init();
+    curl_setopt($curl, CURLOPT_USERAGENT, $agent);
+    curl_setopt($ch, CURLOPT_URL, $Url);
+    curl_setopt($conn, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($conn, CURLOPT_FRESH_CONNECT,  true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $output = curl_exec($ch);
+    curl_close($ch);
+    return $output;
 }
 
 // convers hex to base58
