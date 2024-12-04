@@ -293,25 +293,6 @@ if ($dbversion == 12) {
         FROM `accounts` 
         WHERE 1 ;");
     
-    //
-    // Structure for view `blockstats`
-    //
-    $db->run("DROP TABLE IF EXISTS `blockstats`;");
-    $db->run("DROP VIEW IF EXISTS `blockstats`;");
-    $db->run("CREATE OR REPLACE ALGORITHM=UNDEFINED 
-        VIEW `blockstats`  
-        AS SELECT (`a`.`date` - `b`.`date`) AS `blocktime`,
-            `a`.`height` AS `height`,
-            `a`.`date` AS `timestamp`,
-            from_unixtime(`a`.`date`) AS `date_time`,
-            now() AS `currenttime`,
-            `a`.`difficulty` AS `difficulty`
-        FROM (`blocks` `a` left join `blocks` `b` 
-            on((`b`.`height` = (`a`.`height` - 1)))) 
-        ORDER BY `a`.`height` DESC 
-        LIMIT 0, 100 ;");
-    
-    //
     // Constraints for table `transactions`
     //
     $db->run("ALTER TABLE `transactions`
