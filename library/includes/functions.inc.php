@@ -294,7 +294,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
     $context = stream_context_create($opts);
 
     $result = file_get_contents($url, false, $context);*/
-    $result = url_get_contents($url);
+    $result = url_get_contents($url,$postdata);
     
     if ($_config->debug) {
         _log("Peer response: {$result}");
@@ -310,7 +310,7 @@ function peer_post($url, $data = [], $timeout = 60, $debug = false)
 }
 
 // get content of url using curl
-function url_get_contents($Url) {
+function url_get_contents($Url, $data = null) {
     if (!function_exists('curl_init')){ 
         die('CURL is not installed!');
     }
@@ -321,6 +321,9 @@ function url_get_contents($Url) {
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_FRESH_CONNECT,  true);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    if($data){
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+    }
     $output = curl_exec($ch);
     curl_close($ch);
     return $output;
