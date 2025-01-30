@@ -263,7 +263,7 @@
 
                                 <a href="https://explorer.steroid.io/" class="me-3 btn btn-rounded btn-outline-secondary bw-2"><i class="fas fa-search me-3"></i> Explorer </a>
 
-                                <a href="https://peer1.steroid.io/doc/index.html" class="me-3  btn  btn-rounded btn-outline-primary bw-2"><i class="fas fa-book me-3"></i> Documentation </a>
+                                <a href="/doc/index.html" class="me-3  btn  btn-rounded btn-outline-primary bw-2"><i class="fas fa-book me-3"></i> Documentation </a>
 
                                 <a href="https://www.beepxtra.com/" class="me-3  btn btn-rounded btn-outline-danger bw-2"><i class="fas fa-blog me-3"></i> BeepXtra </a>
                             </nav>

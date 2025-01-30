@@ -14,6 +14,7 @@ class SCore {
     public $textRTL;
     public $deviceType;
     public $pool_config;
+    public $security;
 
     function __construct() {
         global $pool_config;

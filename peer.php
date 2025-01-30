@@ -1,9 +1,9 @@
 <?php
 /*
 The MIT License (MIT)
-Copyright (c) 2018 BeepXtra
+Copyright (c) 2018 AroDev
 
-www.steroid.io
+www.arionum.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -92,9 +92,11 @@ if ($q == "peer") {
     // if it's already peered, only repeer on request
     
     $res = $db->single(
-        "SELECT COUNT(1) FROM peers WHERE hostname=:hostname AND ip=:ip",
+        "SELECT COUNT(1) FROM peers WHERE hostname='".$hostname."' AND ip='".$ip."'",
         [":hostname" => $hostname, ":ip" => $ip]
     );
+    $stat = ($res)?'success':'fail';
+    _log('RES RESULT '.$stat.' HOSTNAME'.$hostname.' IP'.$ip);
     if ($res == 1) {
         if ($data['repeer'] == 1) {
             $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname]);

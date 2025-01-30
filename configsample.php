@@ -93,7 +93,7 @@ class strdconfig {
     public $enable_logging = true;
     // Log verbosity (default 0, maximum 3)
     public $log_verbosity = 3;
-
+    
     /*
       |--------------------------------------------------------------------------
       | Masternode Configuration
@@ -105,7 +105,10 @@ class strdconfig {
     // The public key for the masternode
     public $masternode_public_key = 'MASTERNODE-PUBLIC-KEY';
 
-
+    public $debug_queries;
+    public $log_file;
+    
+    
     function __construct() {
         $this->root_folder = dirname(__FILE__);
         

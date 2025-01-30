@@ -1,5 +1,6 @@
 <?php     
-// Copyright (c) 2018+ BeepXtra
+// Copyright (c) 2018-2021 BeepXtra
+// Copyright (c) 2023+ The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -83,7 +84,8 @@ $block = new SBlock();
 $current = $block->current();
 
 //To develop further for private/controlled api access
-$currentapp = explode('|',$_SERVER['HTTP_USER_AGENT']); // 0=>BeepAPI, 1=>Version, 2=>appid, 3=>appkey, 4=>module
+
+$currentapp = (isset($_SERVER['HTTP_USER_AGENT']))? explode('|',$_SERVER['HTTP_USER_AGENT']):null; // 0=>BeepAPI, 1=>Version, 2=>appid, 3=>appkey, 4=>module
 
 /**
  * Common class autoloader.
