@@ -30,7 +30,6 @@ if ($dbversion == 0) {
       `val` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-
     $db->run("INSERT INTO `config` (`cfg`, `val`) VALUES
     ('hostname', '');");
 
@@ -61,7 +60,6 @@ if ($dbversion == 0) {
       `ip` varchar(45) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-
     $db->run("CREATE TABLE `transactions` (
       `id` varbinary(128) NOT NULL,
       `block` varbinary(128) NOT NULL,
@@ -83,11 +81,13 @@ if ($dbversion == 0) {
 
     $db->run("ALTER TABLE `accounts`
       ADD PRIMARY KEY (`id`),
-      ADD KEY `accounts` (`block`);");
+      ADD KEY `accounts` (`block`),
+      ADD KEY `pubkey` (`public_key`(767));");
 
     $db->run("ALTER TABLE `blocks`
       ADD PRIMARY KEY (`id`),
-      ADD UNIQUE KEY `height` (`height`);");
+      ADD UNIQUE KEY `height` (`height`),
+      ADD KEY `date_index` (`date`);");
 
     $db->run("ALTER TABLE `config` ADD PRIMARY KEY (`cfg`);");
 
@@ -110,7 +110,7 @@ if ($dbversion == 0) {
       ADD CONSTRAINT `accounts` FOREIGN KEY (`block`) REFERENCES `blocks` (`id`) ON DELETE CASCADE;");
 
     $db->run("ALTER TABLE `transactions`
-      ADD CONSTRAINT `block_id` FOREIGN KEY (`block`) REFERENCES `blocks` (`id`) ON DELETE CASCADE;");
+      ADD CONSTRAINT `block_id` FOREIGN KEY (`block`) REFERENCES `blocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
 
     $dbversion++;
 }
@@ -139,6 +139,7 @@ if ($dbversion == 5) {
 if ($dbversion == 6) {
     $db->run("ALTER TABLE `peers` ADD `stuckfail` TINYINT(4) NOT NULL DEFAULT '0' AFTER `fails`, ADD INDEX (`stuckfail`); ");
     $db->run("ALTER TABLE `accounts` ADD `alias` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL AFTER `balance`; ");
+    $db->run("ALTER TABLE `accounts` ADD KEY `alias` (`alias`)");
     $dbversion++;
 }
 if ($dbversion == 7) {
@@ -220,9 +221,9 @@ if ($dbversion == 10) {
     $dbversion++;
 }
 
-if ($dbversion == 11) { 
+if ($dbversion == 11) {
     $db->run("ALTER TABLE `transactions` ADD INDEX(`version`); ");
-    $db->run("ALTER TABLE `transactions` ADD INDEX(`message`); ");
+    $db->run("ALTER TABLE `transactions` ADD FULLTEXT KEY `message` (`message`); ");
     $db->run("
     CREATE TABLE `logs` (
       `id` int(11) NOT NULL,
@@ -240,24 +241,64 @@ if ($dbversion == 11) {
     $db->run("ALTER TABLE `masternode` ADD `cold_last_won` INT NOT NULL DEFAULT '0' AFTER `vote_key`, ADD INDEX(`cold_last_won`);  ");
     $db->run("ALTER TABLE `masternode` ADD `voted` TINYINT NOT NULL DEFAULT '0' AFTER `cold_last_won`, ADD INDEX (`voted`); ");
 
-
-
     $db->run("CREATE TABLE `votes` (
       `id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
       `nfo` varchar(64) NOT NULL,
       `val` int(11) NOT NULL DEFAULT 0
     ) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
-    
-  
-    
+
     $db->run("INSERT INTO `votes` (`id`, `nfo`, `val`) VALUES
     ('coldstacking', 'Enable cold stacking for inactive masternodes', 1),
     ('emission30', 'Emission reduction by 30 percent', 1),
     ('endless10reward', 'Minimum reward to be 10 bpc forever', 0),
     ('masternodereward50', 'Masternode reward to be 50 percent of the block reward', 1);");
-    
+
     $db->run("ALTER TABLE `votes`  ADD PRIMARY KEY (`id`);");
 
+    $dbversion++;
+}
+
+if ($dbversion == 12) {
+    //
+    // Structure for view `blockstats`
+    //
+    $db->run("DROP TABLE IF EXISTS `blockstats`;");
+    $db->run("DROP VIEW IF EXISTS `blockstats`;");
+    $db->run("CREATE OR REPLACE ALGORITHM=UNDEFINED
+        VIEW `blockstats`  
+        AS SELECT (`a`.`date` - `b`.`date`) AS `blocktime`,
+            `a`.`height` AS `height`,
+            `a`.`date` AS `timestamp`,
+            from_unixtime(`a`.`date`) AS `date_time`,
+            now() AS `currenttime`,
+            `a`.`difficulty` AS `difficulty`
+        FROM (`blocks` `a` 
+            left join `blocks` `b` 
+            on((`b`.`height` = (`a`.`height` - 1)))) 
+        ORDER BY `a`.`height` DESC 
+        LIMIT 0, 100 ;");
+
+    //
+    // Stand-in structure for view `wallet_stats`
+    // (See below for the actual view)
+    //
+    $db->run("DROP TABLE IF EXISTS `wallet_stats`;");
+    $db->run("DROP VIEW IF EXISTS `wallet_stats`;");
+    $db->run("CREATE OR REPLACE ALGORITHM=UNDEFINED 
+        VIEW `wallet_stats`  
+        AS SELECT sum(`accounts`.`balance`) AS `current_supply`,
+            count(`accounts`.`id`) AS `number_of_wallets`,
+            (select count(`peers`.`id`) from `peers`) AS `number_of_peers`,
+            (select `blocks`.`height` from `blocks` order by `blocks`.`height` desc limit 1) AS `height` 
+        FROM `accounts` 
+        WHERE 1 ;");
+    
+    // Constraints for table `transactions`
+    //
+    $db->run("ALTER TABLE `transactions`
+        ADD CONSTRAINT `height` FOREIGN KEY (`height`) REFERENCES `blocks` (`height`);");
+    //$db->run("COMMIT;");
+    
     $dbversion++;
 }
 
@@ -267,4 +308,4 @@ if ($dbversion == 11) {
 if ($dbversion != $_config->dbversion) {
     $db->run("UPDATE config SET val=:val WHERE cfg='dbversion'", [":val" => $dbversion]);
 }
-$db->commit();
+//$db->commit();

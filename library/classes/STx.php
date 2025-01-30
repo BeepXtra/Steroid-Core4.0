@@ -312,8 +312,10 @@ class STx {
                     _log("$x[id] - Transaction Check Failed");
                     continue;
                 }
-  
-                $balance[$x['src']] += $x['val'] + $x['fee'];
+                
+                // prepare total balance
+                (!isset($balance[$x['src']]))?$balance[$x['src']] = $x['val'] + $x['fee']:$balance[$x['src']] += $x['val'] + $x['fee'];
+                
                 if ($db->single("SELECT COUNT(1) FROM transactions WHERE id=:id", [":id" => $x['id']]) > 0) {
                     _log("$x[id] - Duplicate transaction");
                     continue; //duplicate transaction
@@ -892,7 +894,7 @@ class STx {
             }
             //make sure the wallet has enough asset units
             $balance=$db->single("SELECT balance FROM assets_balance WHERE account=:account AND asset=:asset", [":account"=>$src, ":asset"=>san($asset[0])]);
-            if (($balance - $asset[1]) < 0) {
+            if ($balance<$asset[1]) {
                 _log("Not enough balance", 3);
                 return false;
             }
