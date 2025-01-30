@@ -27,8 +27,8 @@ class ReportController extends AbstractController {
                 break;
             case 2:
                 $model = $this->getModel($request);
-                if ($model == 'users') {
-                    $data = $this->getUsersReport($request);
+                if ($model == 'test') {
+                    $data = null;
                 } else {
                     $data = $this->error('The specified resource does not exist in this module', 7);
                 }
@@ -37,7 +37,7 @@ class ReportController extends AbstractController {
                 //TO DEVELOP
                 $model = $this->getModel($request);
                 switch ($model) {
-                    case 'users':
+                    case 'test':
                         $data = $this->error('The specified resource does not exist in this module', 7);
                         break;
                     default:
