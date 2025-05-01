@@ -326,7 +326,7 @@ elseif ($cmd == "delete-peer") {
  * php util.php peers-block
  *
  * @apiSuccessExample {text} Success-Response:
- * http://peer5.arionum.com        16849
+ * http://peer5.steroid.io        16849
  * ...
  * http://peer10.steroid.io        16849
  */
