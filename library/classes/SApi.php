@@ -471,7 +471,8 @@ class SApi {
         //number of active wallets
         $acc = $db->single("SELECT COUNT(1) FROM accounts");
         //number of transactions recorded
-        $tr = $db->single("SELECT COUNT(1) FROM transactions");
+        //$tr = $db->single("SELECT COUNT(1) FROM transactions");
+        $tr = $db->single("SELECT TABLE_ROWS as 'COUNT(1)' FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'S4QL' AND TABLE_NAME = 'transactions'");
         //count masternodes
         $masternodes = $db->single("SELECT COUNT(1) FROM masternode");
         //txs in mempool
