@@ -615,7 +615,8 @@ class SBlock {
                 // keep current difficulty
                 $dif = $current['difficulty'];
             }
-        } elseif ($height >= 20) {
+        } else {
+            // height >= 20: use last 20 same-parity blocks to calculate average block time
             $type = $height % 2;
             $current = $db->row("SELECT difficulty from blocks WHERE height<=:h ORDER by height DESC LIMIT 1,1", [":h" => $height]);
             $blks = 0;
@@ -630,68 +631,14 @@ class SBlock {
                 $blks++;
                 $total_time += $time;
             }
-            $result = ceil($total_time / $blks);
+            $result = ($blks > 0) ? ceil($total_time / $blks) : 60;
             _log("Block time: $result", 5);
-            // 1 minute blocktime
-            if ($type /* && disable for now  $result == false */) {
-                // miner block
-                // 1 minute blocktime
-                if ($result > 70) {
-                    $dif = bcmul($current['difficulty'], 1.05);
-                } elseif ($result < 50) {
-                    // if lower, decrease by 5%
-                    $dif = bcmul($current['difficulty'], 0.95);
-                } else {
-                    // keep current difficulty
-                    $dif = $current['difficulty'];
-                }
-            } else {
-                // masternode blocks
-                // 2 minutes blocktime
-                if ($result > 70) {
-                    $dif = bcmul($current['difficulty'], 1.05);
-                } elseif ($result < 50) {
-                    // if lower, decrease by 5%
-                    $dif = bcmul($current['difficulty'], 0.95);
-                } else {
-                    // keep current difficulty
-                    $dif = $current['difficulty'];
-                }
-            }
-        } else {
-            // hardfork 80000, fix difficulty targetting
-
-
-
-            $type = $height % 2;
-            // for mn, we use gpu diff
-            if (!$type) {
-                return $current['difficulty'];
-            }
-
-            $blks = 0;
-            $total_time = 0;
-            $blk = $db->run("SELECT `date`, height FROM blocks  ORDER by height DESC LIMIT 60");
-            for ($i = 0; $i < 59; $i++) {
-                $ctype = $blk[$i + 1]['height'] % 2;
-                $time = $blk[$i]['date'] - $blk[$i + 1]['date'];
-                if ($type == $ctype) {
-                    continue;
-                }
-                $blks++;
-                $total_time += $time;
-            }
-            $result = ceil($total_time / $blks);
-            _log("Block time: $result", 5);
-
-            // if larger than 260 sec, increase by 5%
-            if ($result > 60) {
+            // Target: 60 s; adjust ±5% when outside the 50-70 s window
+            if ($result > 70) {
                 $dif = bcmul($current['difficulty'], 1.05);
-            } elseif ($result < 20) {
-                // if lower, decrease by 5%
+            } elseif ($result < 50) {
                 $dif = bcmul($current['difficulty'], 0.95);
             } else {
-                // keep current difficulty
                 $dif = $current['difficulty'];
             }
         }
@@ -731,7 +678,7 @@ class SBlock {
     // calculate the reward for each block
     public function reward($id, $data = []) {
         global $platform;
-        if($id ==1 && $platform->config->premine){
+        if ($id == 1 && $platform->config->premine) {
             return number_format($platform->config->premine, 8, '.', '');
         }
         // starting reward
@@ -745,14 +692,8 @@ class SBlock {
         }
         // calculate the transaction fees
         $fees = 0;
-        if (count($data) > 0) {
-            foreach ($data as $x) {
-                $fees += $x['fee'];
-            }
-        }
-        if($id === 1){
-            //pre-mine configuration
-            
+        foreach ($data as $x) {
+            $fees += $x['fee'];
         }
         return number_format($reward + $fees, 8, '.', '');
     }

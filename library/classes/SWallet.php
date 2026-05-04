@@ -75,14 +75,7 @@ class SWallet {
 
     // check the validity of a base58 encoded key. At the moment, it checks only the characters to be base58.
     public function valid_key($id) {
-        $chars = str_split("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
-        for ($i = 0; $i < strlen($id); $i++) {
-            if (!in_array($id[$i], $chars)) {
-                return false;
-            }
-        }
-
-        return true;
+        return (bool) preg_match('/^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/', $id);
     }
 
     //check alias validity
@@ -154,17 +147,11 @@ class SWallet {
 
     // check the validity of an address. At the moment, it checks only the characters to be base58 and the length to be >=70 and <=128.
     public function valid($id) {
-        if (strlen($id) < 70 || strlen($id) > 128) {
+        $len = strlen($id);
+        if ($len < 70 || $len > 128) {
             return false;
         }
-        $chars = str_split("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
-        for ($i = 0; $i < strlen($id); $i++) {
-            if (!in_array($id[$i], $chars)) {
-                return false;
-            }
-        }
-
-        return true;
+        return (bool) preg_match('/^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/', $id);
     }
 
     // returns the current account balance
@@ -193,15 +180,11 @@ class SWallet {
     // returns the account balance - any pending debits from the mempool
     public function pending_balance($id) {
         global $db;
-        
-        $res = $db->single("SELECT (IFNULL(SUM(val),0) - IFNULL((SELECT SUM(val+fee) FROM mempool WHERE src=:src),0) ) FROM mempool WHERE dst=:dst", [":src" => $id, ":dst" => $id]);
-        return $res;
-        if ($res === false) {
-            $res = "0.00000000";
-        }
-
-        
-        return $res;
+        $res = $db->single(
+            "SELECT (IFNULL(SUM(val),0) - IFNULL((SELECT SUM(val+fee) FROM mempool WHERE src=:src),0)) FROM mempool WHERE dst=:dst",
+            [":src" => $id, ":dst" => $id]
+        );
+        return $res !== false ? $res : "0.00000000";
     }
 
     // returns all the transactions of a specific address
