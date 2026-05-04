@@ -122,9 +122,6 @@ class ApiController extends AbstractController {
                     case 'assetlist':
                         $data = $this->sapi->assetlist(intval($request->url_elements[2]));
                         break;
-                    case 'getblocktransactions':
-                        $data = $this->sapi->getblocktransactions($request->url_elements[2]);
-                        break;
                     default:
                         $data = $this->error('Incomplete request. Please check documentation', 2);
                         break;
