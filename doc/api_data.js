@@ -1475,6 +1475,828 @@ define({ "api": [
     "groupTitle": "API"
   },
   {
+    "type": "get",
+    "url": window.location.hostname+"/api/totalsupply",
+    "title": "24. totalSupply",
+    "name": "totalSupply",
+    "group": "API",
+    "description": "<p>Returns the total issued supply of BPC coins.</p>",
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "total_supply",
+            "description": "<p>Total issued BPC supply (8 decimal places)</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Success-Response:",
+          "content": "{\"status\":\"ok\",\"data\":{\"total_supply\":\"21000000.00000000\"}}",
+          "type": "json"
+        }
+      ]
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/circsupply",
+    "title": "25. circSupply",
+    "name": "circSupply",
+    "group": "API",
+    "description": "<p>Returns the circulating supply of BPC — total supply minus known treasury/reserve addresses.</p>",
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "circulating_supply",
+            "description": "<p>Circulating BPC supply (8 decimal places)</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Success-Response:",
+          "content": "{\"status\":\"ok\",\"data\":{\"circulating_supply\":\"18500000.00000000\"}}",
+          "type": "json"
+        }
+      ]
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/assetlist",
+    "title": "26. assetList",
+    "name": "assetList",
+    "group": "API",
+    "description": "<p>Returns a paginated list of all assets created on the chain. Returns the first 50 assets ordered by creation height (newest first). Use <code>/api/assetlist/{limit}</code> or <code>/api/assetlist/{limit}/{offset}</code> for custom pagination.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "numeric",
+            "optional": true,
+            "field": "limit",
+            "description": "<p>Number of assets to return (1–200, default 50). Pass in URL: <code>/asset/list/{limit}</code></p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "numeric",
+            "optional": true,
+            "field": "offset",
+            "description": "<p>Pagination offset (default 0). Pass in URL: <code>/asset/list/{limit}/{offset}</code></p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Request-Examples:",
+          "content": "GET /api/assetlist\nGET /api/assetlist/10\nGET /api/assetlist/10/20",
+          "type": "text"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Array of asset objects</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.id",
+            "description": "<p>Asset address (blockchain address of the issuing account)</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": true,
+            "field": "data.alias",
+            "description": "<p>Alias of the issuing account (if set)</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.max_supply",
+            "description": "<p>Maximum number of units that can be issued</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.price",
+            "description": "<p>Unit price in BPC (set by the issuer)</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data.tradable",
+            "description": "<p>Whether the asset can be traded on the built-in market</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data.dividend_only",
+            "description": "<p>If true, asset units are not transferable — dividends only</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data.auto_dividend",
+            "description": "<p>Whether automated dividend payouts are enabled</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data.allow_bid",
+            "description": "<p>Whether buy-side market orders (bids) are permitted</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.height",
+            "description": "<p>Block height at which the asset was created</p>"
+          }
+        ]
+      }
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/asset/$id",
+    "title": "27. getAsset",
+    "name": "getAsset",
+    "group": "API",
+    "description": "<p>Returns full details for a single asset, including its current circulating supply and holder count. The <code>$id</code> may be the asset address, the issuer's public key, or the account alias.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>Asset address, issuer public key, or account alias</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Request-Example:",
+          "content": "GET /api/asset/3G6Xa...",
+          "type": "text"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.id",
+            "description": "<p>Asset address</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": true,
+            "field": "data.alias",
+            "description": "<p>Alias of the issuing account</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.max_supply",
+            "description": "<p>Maximum issuable units</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.circulating_supply",
+            "description": "<p>Units currently in circulation (sum of all holder balances)</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.holders",
+            "description": "<p>Number of accounts holding at least 1 unit</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.price",
+            "description": "<p>Unit price in BPC</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data.tradable",
+            "description": "<p>Whether the asset can be traded on the market</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.height",
+            "description": "<p>Block height at creation</p>"
+          }
+        ]
+      }
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/assetstats/$id",
+    "title": "28. assetStats",
+    "name": "assetStats",
+    "group": "API",
+    "description": "<p>Returns aggregate statistics for an asset: supply, holder count, open order book depth, last trade price, and total dividend distributions.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>Asset address, issuer public key, or account alias</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.id",
+            "description": "<p>Asset address</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": true,
+            "field": "data.alias",
+            "description": "<p>Account alias</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.max_supply",
+            "description": "<p>Maximum issuable units</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.circulating_supply",
+            "description": "<p>Units currently in circulation</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.holders",
+            "description": "<p>Number of accounts with a positive balance</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.open_bids",
+            "description": "<p>Number of open buy orders</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.open_asks",
+            "description": "<p>Number of open sell orders</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": true,
+            "field": "data.last_trade_price",
+            "description": "<p>Price (in BPC) of the most recent completed trade, or null if no trades yet</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.total_distributions",
+            "description": "<p>Total number of dividend distribution events</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.created_at_height",
+            "description": "<p>Block height at which the asset was created</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Success-Response:",
+          "content": "{\"status\":\"ok\",\"data\":{\"id\":\"3G6Xa...\",\"alias\":\"MYTOKEN\",\"max_supply\":1000000,\"circulating_supply\":750000,\"holders\":42,\"open_bids\":5,\"open_asks\":3,\"last_trade_price\":\"0.50000000\",\"total_distributions\":12,\"created_at_height\":1500000}}",
+          "type": "json"
+        }
+      ]
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/assetholders/$id",
+    "title": "29. assetHolders",
+    "name": "assetHolders",
+    "group": "API",
+    "description": "<p>Returns the list of accounts holding a given asset, ranked by balance (highest first).</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>Asset address, issuer public key, or account alias</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Array of holder objects, ordered by balance descending</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.account",
+            "description": "<p>Holder's blockchain address</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.balance",
+            "description": "<p>Number of asset units held</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": true,
+            "field": "data.alias",
+            "description": "<p>Holder's account alias (if set)</p>"
+          }
+        ]
+      }
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/assetmarket/$id",
+    "title": "30. assetMarket",
+    "name": "assetMarket",
+    "group": "API",
+    "description": "<p>Returns the open order book for an asset. Append <code>/bid</code> or <code>/ask</code> to filter to buy or sell orders: <code>/api/assetmarket/{id}/bid</code> or <code>/api/assetmarket/{id}/ask</code>. Without a filter, all open orders are returned.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>Asset address, issuer public key, or account alias</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": true,
+            "field": "type",
+            "description": "<p><code>bid</code> (buy orders) or <code>ask</code> (sell orders). Omit for all open orders.</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Request-Examples:",
+          "content": "GET /api/assetmarket/3G6Xa...\nGET /api/assetmarket/3G6Xa.../bid\nGET /api/assetmarket/3G6Xa.../ask",
+          "type": "text"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Array of market order objects</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.id",
+            "description": "<p>Order ID</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.asset",
+            "description": "<p>Asset address</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.public_key",
+            "description": "<p>Public key of the order placer</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.type",
+            "description": "<p><code>bid</code> or <code>ask</code></p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.price",
+            "description": "<p>Order price per unit in BPC</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.quantity",
+            "description": "<p>Number of asset units in the order</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.status",
+            "description": "<p>0 = open, 1 = filled, 2 = cancelled</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.date",
+            "description": "<p>Order placement date (UNIX timestamp)</p>"
+          }
+        ]
+      }
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/assetdividends/$id",
+    "title": "31. assetDividends",
+    "name": "assetDividends",
+    "group": "API",
+    "description": "<p>Returns the dividend distribution history for an asset. Includes both manual distributions (transaction version 54) and automated per-block distributions (version 57).</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>Asset address, issuer public key, or account alias</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Array of dividend distribution records, newest first</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.id",
+            "description": "<p>Transaction ID</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.height",
+            "description": "<p>Block height of the distribution</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.val",
+            "description": "<p>Total BPC distributed</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.fee",
+            "description": "<p>Transaction fee paid</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.date",
+            "description": "<p>Distribution date (UNIX timestamp)</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.distribution_type",
+            "description": "<p><code>manual</code> (v54) or <code>automated</code> (v57)</p>"
+          }
+        ]
+      }
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/assetbalance/$assetId/$accountId",
+    "title": "32. assetBalance",
+    "name": "assetBalance",
+    "group": "API",
+    "description": "<p>Returns the balance of a specific asset for a given account. The asset and account can each be specified as an address, public key, or alias. Two URL forms are supported: slash-separated (<code>/api/assetbalance/{assetId}/{accountId}</code>) or colon-separated (<code>/api/assetbalance/{assetId}:{accountId}</code>).</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "assetId",
+            "description": "<p>Asset address, issuer public key, or alias</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "accountId",
+            "description": "<p>Account address, public key, or alias</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Request-Examples:",
+          "content": "GET /api/assetbalance/3G6Xa.../5XXSb...\nGET /api/assetbalance/3G6Xa...:5XXSb...",
+          "type": "text"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.asset",
+            "description": "<p>Resolved asset address</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.account",
+            "description": "<p>Resolved account address</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.balance",
+            "description": "<p>Number of asset units held by the account (0 if none)</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Success-Response:",
+          "content": "{\"status\":\"ok\",\"data\":{\"asset\":\"3G6Xa...\",\"account\":\"5XXSb...\",\"balance\":500}}",
+          "type": "json"
+        }
+      ]
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/myassets/$account",
+    "title": "33. myAssets",
+    "name": "myAssets",
+    "group": "API",
+    "description": "<p>Returns all assets held by a specific account where the balance is greater than zero. The account can be specified as an address, public key, or alias.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "account",
+            "description": "<p>Account address, public key, or alias</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Array of asset holdings, ordered by balance descending</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data.asset",
+            "description": "<p>Asset address</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.balance",
+            "description": "<p>Units held</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": true,
+            "field": "data.asset_alias",
+            "description": "<p>Alias of the asset's issuing account (if set)</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.max_supply",
+            "description": "<p>Maximum issuable units for this asset</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "boolean",
+            "optional": false,
+            "field": "data.tradable",
+            "description": "<p>Whether this asset can be traded on the market</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "numeric",
+            "optional": false,
+            "field": "data.price",
+            "description": "<p>Unit price in BPC set by the issuer</p>"
+          }
+        ]
+      }
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
+    "type": "get",
+    "url": window.location.hostname+"/api/propwallet/$public_key",
+    "title": "34. propWallet",
+    "name": "propWallet",
+    "group": "API",
+    "description": "<p>Registers a public key with this node, ensuring the associated account address is stored before any transactions arrive. Useful when setting up a new wallet on the network so peers have the account record in advance. Returns a success acknowledgement; the caller should verify the account is present afterwards.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "public_key",
+            "description": "<p>The account's public key (base58-encoded secp256k1 public key)</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Request-Example:",
+          "content": "GET /api/propwallet/PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCyjGMdVDanywM3CbqvswVqysqU8XS87FcjpqNijtpRSSQ36WexRDv3rJL5X8qpGvzvznuErSRMfb2G6aNoiaT3aEJ",
+          "type": "text"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Confirmation message: &quot;Storing wallet attempted - check to verify&quot;</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Success-Response:",
+          "content": "{\"status\":\"ok\",\"data\":\"Storing wallet attempted - check to verify\"}",
+          "type": "json"
+        }
+      ]
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
     "type": "php util.php",
     "url": "balance",
     "title": "Balance",
