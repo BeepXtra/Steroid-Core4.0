@@ -1538,11 +1538,11 @@ define({ "api": [
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset",
-    "title": "01. listAssets",
-    "name": "listAssets",
-    "group": "ASSETS",
-    "description": "<p>Returns a paginated list of all assets created on the chain. The short form <code>/asset</code> or <code>/asset/list</code> returns the first 50 assets ordered by creation height (newest first). Use the <code>/asset/list/{limit}/{offset}</code> form for pagination.</p>",
+    "url": window.location.hostname+"/api/assetlist",
+    "title": "26. assetList",
+    "name": "assetList",
+    "group": "API",
+    "description": "<p>Returns a paginated list of all assets created on the chain. Returns the first 50 assets ordered by creation height (newest first). Use <code>/api/assetlist/{limit}</code> or <code>/api/assetlist/{limit}/{offset}</code> for custom pagination.</p>",
     "parameter": {
       "fields": {
         "Parameter": [
@@ -1565,7 +1565,7 @@ define({ "api": [
       "examples": [
         {
           "title": "Request-Examples:",
-          "content": "GET /asset\nGET /asset/list\nGET /asset/list/10\nGET /asset/list/10/20",
+          "content": "GET /api/assetlist\nGET /api/assetlist/10\nGET /api/assetlist/10/20",
           "type": "text"
         }
       ]
@@ -1647,15 +1647,15 @@ define({ "api": [
       }
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset/get/$id",
-    "title": "02. getAsset",
+    "url": window.location.hostname+"/api/asset/$id",
+    "title": "27. getAsset",
     "name": "getAsset",
-    "group": "ASSETS",
+    "group": "API",
     "description": "<p>Returns full details for a single asset, including its current circulating supply and holder count. The <code>$id</code> may be the asset address, the issuer's public key, or the account alias.</p>",
     "parameter": {
       "fields": {
@@ -1672,7 +1672,7 @@ define({ "api": [
       "examples": [
         {
           "title": "Request-Example:",
-          "content": "GET /asset/get/3G6Xa...",
+          "content": "GET /api/asset/3G6Xa...",
           "type": "text"
         }
       ]
@@ -1740,15 +1740,15 @@ define({ "api": [
       }
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset/stats/$id",
-    "title": "03. assetStats",
+    "url": window.location.hostname+"/api/assetstats/$id",
+    "title": "28. assetStats",
     "name": "assetStats",
-    "group": "ASSETS",
+    "group": "API",
     "description": "<p>Returns aggregate statistics for an asset: supply, holder count, open order book depth, last trade price, and total dividend distributions.</p>",
     "parameter": {
       "fields": {
@@ -1847,15 +1847,15 @@ define({ "api": [
       ]
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset/holders/$id",
-    "title": "04. assetHolders",
+    "url": window.location.hostname+"/api/assetholders/$id",
+    "title": "29. assetHolders",
     "name": "assetHolders",
-    "group": "ASSETS",
+    "group": "API",
     "description": "<p>Returns the list of accounts holding a given asset, ranked by balance (highest first).</p>",
     "parameter": {
       "fields": {
@@ -1905,16 +1905,16 @@ define({ "api": [
       }
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset/market/$id",
-    "title": "05. assetMarket",
+    "url": window.location.hostname+"/api/assetmarket/$id",
+    "title": "30. assetMarket",
     "name": "assetMarket",
-    "group": "ASSETS",
-    "description": "<p>Returns the open order book for an asset. Append <code>/bid</code> or <code>/ask</code> to filter to buy or sell orders respectively. Without a filter, all open orders are returned.</p>",
+    "group": "API",
+    "description": "<p>Returns the open order book for an asset. Append <code>/bid</code> or <code>/ask</code> to filter to buy or sell orders: <code>/api/assetmarket/{id}/bid</code> or <code>/api/assetmarket/{id}/ask</code>. Without a filter, all open orders are returned.</p>",
     "parameter": {
       "fields": {
         "Parameter": [
@@ -1937,7 +1937,7 @@ define({ "api": [
       "examples": [
         {
           "title": "Request-Examples:",
-          "content": "GET /asset/market/3G6Xa...\nGET /asset/market/3G6Xa.../bid\nGET /asset/market/3G6Xa.../ask",
+          "content": "GET /api/assetmarket/3G6Xa...\nGET /api/assetmarket/3G6Xa.../bid\nGET /api/assetmarket/3G6Xa.../ask",
           "type": "text"
         }
       ]
@@ -2012,15 +2012,15 @@ define({ "api": [
       }
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset/dividends/$id",
-    "title": "06. assetDividends",
+    "url": window.location.hostname+"/api/assetdividends/$id",
+    "title": "31. assetDividends",
     "name": "assetDividends",
-    "group": "ASSETS",
+    "group": "API",
     "description": "<p>Returns the dividend distribution history for an asset. Includes both manual distributions (transaction version 54) and automated per-block distributions (version 57).</p>",
     "parameter": {
       "fields": {
@@ -2091,16 +2091,16 @@ define({ "api": [
       }
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset/balance/$assetId/$accountId",
-    "title": "07. assetBalance",
+    "url": window.location.hostname+"/api/assetbalance/$assetId/$accountId",
+    "title": "32. assetBalance",
     "name": "assetBalance",
-    "group": "ASSETS",
-    "description": "<p>Returns the balance of a specific asset for a given account. The asset and account can each be specified as an address, public key, or alias. Two URL forms are supported: slash-separated (<code>/asset/balance/{assetId}/{accountId}</code>) or colon-separated (<code>/asset/balance/{assetId}:{accountId}</code>).</p>",
+    "group": "API",
+    "description": "<p>Returns the balance of a specific asset for a given account. The asset and account can each be specified as an address, public key, or alias. Two URL forms are supported: slash-separated (<code>/api/assetbalance/{assetId}/{accountId}</code>) or colon-separated (<code>/api/assetbalance/{assetId}:{accountId}</code>).</p>",
     "parameter": {
       "fields": {
         "Parameter": [
@@ -2123,7 +2123,7 @@ define({ "api": [
       "examples": [
         {
           "title": "Request-Examples:",
-          "content": "GET /asset/balance/3G6Xa.../5XXSb...\nGET /asset/balance/3G6Xa...:5XXSb...",
+          "content": "GET /api/assetbalance/3G6Xa.../5XXSb...\nGET /api/assetbalance/3G6Xa...:5XXSb...",
           "type": "text"
         }
       ]
@@ -2163,15 +2163,15 @@ define({ "api": [
       ]
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "get",
-    "url": window.location.hostname+"/asset/myassets/$account",
-    "title": "08. myAssets",
+    "url": window.location.hostname+"/api/myassets/$account",
+    "title": "33. myAssets",
     "name": "myAssets",
-    "group": "ASSETS",
+    "group": "API",
     "description": "<p>Returns all assets held by a specific account where the balance is greater than zero. The account can be specified as an address, public key, or alias.</p>",
     "parameter": {
       "fields": {
@@ -2242,8 +2242,8 @@ define({ "api": [
       }
     },
     "version": "1.0.1",
-    "filename": "./asset",
-    "groupTitle": "ASSETS"
+    "filename": "./api",
+    "groupTitle": "API"
   },
   {
     "type": "php util.php",
