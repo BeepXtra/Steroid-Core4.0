@@ -304,6 +304,28 @@ if ($dbversion == 12) {
 
 
 
+if ($dbversion == 13) {
+    // Performance indexes: asset market matching and balance lookups were missing indexes.
+    // Composite (asset, status, type) covers the hot path in asset_market_orders().
+    $db->run("ALTER TABLE `assets_market`
+        ADD INDEX `idx_asset_status_type` (`asset`(64), `status`, `type`),
+        ADD INDEX `idx_asset_price`       (`asset`(64), `price`);");
+
+    // Index on asset column of assets_balance for get_holders() and dividend distribution.
+    $db->run("ALTER TABLE `assets_balance`
+        ADD INDEX `idx_asset` (`asset`(64));");
+
+    // Composite index on transactions for dividend history lookups (version + public_key + height).
+    $db->run("ALTER TABLE `transactions`
+        ADD INDEX `idx_version_pubkey_height` (`version`, `public_key`(64), `height`);");
+
+    // Index on mempool dst for pending balance queries.
+    $db->run("ALTER TABLE `mempool`
+        ADD INDEX `idx_dst` (`dst`(64));");
+
+    $dbversion++;
+}
+
 // update the db version to the latest one
 if ($dbversion != $_config->dbversion) {
     $db->run("UPDATE config SET val=:val WHERE cfg='dbversion'", [":val" => $dbversion]);

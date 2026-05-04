@@ -233,6 +233,7 @@ class STx {
                 return false;
             }
         }
+        return true;
     }
 
     // clears the mempool
@@ -361,18 +362,18 @@ class STx {
         $height = $current['height'];
         $x['id'] = san($x['id']);
         $bind = [
-            ":peer"      => $peer,
-            ":id"        => $x['id'],
-            "public_key" => $x['public_key'],
-            ":height"    => $height,
-            ":src"       => $x['src'],
-            ":dst"       => $x['dst'],
-            ":val"       => $x['val'],
-            ":fee"       => $x['fee'],
-            ":signature" => $x['signature'],
-            ":version"   => $x['version'],
-            ":date"      => $x['date'],
-            ":message"   => $x['message'],
+            ":peer"       => $peer,
+            ":id"         => $x['id'],
+            ":public_key" => $x['public_key'],
+            ":height"     => $height,
+            ":src"        => $x['src'],
+            ":dst"        => $x['dst'],
+            ":val"        => $x['val'],
+            ":fee"        => $x['fee'],
+            ":signature"  => $x['signature'],
+            ":version"    => $x['version'],
+            ":date"       => $x['date'],
+            ":message"    => $x['message'],
         ];
 
         //only a single masternode command of same type, per block

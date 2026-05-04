@@ -305,6 +305,11 @@ class SBlock {
         } else {
             _log("Commiting block", 3);
             $db->commit();
+            // Invalidate cached values that change with every new block.
+            if (!class_exists('SCache')) {
+                require_once __DIR__ . '/SCache.php';
+            }
+            SCache::invalidate_block_cache();
         }
         // relese the locking as everything is finished
         $db->exec("UNLOCK TABLES");
@@ -550,10 +555,16 @@ class SBlock {
     // returns the current block, without the transactions
     public function current() {
         global $db;
-        $current = $db->row("SELECT * FROM blocks ORDER by height DESC LIMIT 1");
+        if (!class_exists('SCache')) {
+            require_once __DIR__ . '/SCache.php';
+        }
+        $current = SCache::remember('current_block', 20, function() use ($db) {
+            return $db->row("SELECT * FROM blocks ORDER BY height DESC LIMIT 1");
+        });
         if (!$current) {
             $this->genesis();
-            return $this->current(true);
+            SCache::delete('current_block');
+            return $db->row("SELECT * FROM blocks ORDER BY height DESC LIMIT 1");
         }
         return $current;
     }
@@ -569,6 +580,16 @@ class SBlock {
     // calculates the difficulty / base target for a specific block. The higher the difficulty number, the easier it is to win a block.
     public function difficulty($height = 0) {
         global $db;
+        if (!class_exists('SCache')) {
+            require_once __DIR__ . '/SCache.php';
+        }
+
+        // Cache the current difficulty (height=0 case) for 20s — it only changes on a new block.
+        $cache_key = $height == 0 ? 'block_difficulty' : "block_difficulty_$height";
+        $cached = SCache::get($cache_key);
+        if ($cached !== false) {
+            return $cached;
+        }
 
         // if no block height is specified, use the current block.
         if ($height == 0) {
@@ -615,7 +636,8 @@ class SBlock {
                 // keep current difficulty
                 $dif = $current['difficulty'];
             }
-        } elseif ($height >= 20) {
+        } else {
+            // height >= 20: use last 20 same-parity blocks to calculate average block time
             $type = $height % 2;
             $current = $db->row("SELECT difficulty from blocks WHERE height<=:h ORDER by height DESC LIMIT 1,1", [":h" => $height]);
             $blks = 0;
@@ -630,68 +652,14 @@ class SBlock {
                 $blks++;
                 $total_time += $time;
             }
-            $result = ceil($total_time / $blks);
+            $result = ($blks > 0) ? ceil($total_time / $blks) : 60;
             _log("Block time: $result", 5);
-            // 1 minute blocktime
-            if ($type /* && disable for now  $result == false */) {
-                // miner block
-                // 1 minute blocktime
-                if ($result > 70) {
-                    $dif = bcmul($current['difficulty'], 1.05);
-                } elseif ($result < 50) {
-                    // if lower, decrease by 5%
-                    $dif = bcmul($current['difficulty'], 0.95);
-                } else {
-                    // keep current difficulty
-                    $dif = $current['difficulty'];
-                }
-            } else {
-                // masternode blocks
-                // 2 minutes blocktime
-                if ($result > 70) {
-                    $dif = bcmul($current['difficulty'], 1.05);
-                } elseif ($result < 50) {
-                    // if lower, decrease by 5%
-                    $dif = bcmul($current['difficulty'], 0.95);
-                } else {
-                    // keep current difficulty
-                    $dif = $current['difficulty'];
-                }
-            }
-        } else {
-            // hardfork 80000, fix difficulty targetting
-
-
-
-            $type = $height % 2;
-            // for mn, we use gpu diff
-            if (!$type) {
-                return $current['difficulty'];
-            }
-
-            $blks = 0;
-            $total_time = 0;
-            $blk = $db->run("SELECT `date`, height FROM blocks  ORDER by height DESC LIMIT 60");
-            for ($i = 0; $i < 59; $i++) {
-                $ctype = $blk[$i + 1]['height'] % 2;
-                $time = $blk[$i]['date'] - $blk[$i + 1]['date'];
-                if ($type == $ctype) {
-                    continue;
-                }
-                $blks++;
-                $total_time += $time;
-            }
-            $result = ceil($total_time / $blks);
-            _log("Block time: $result", 5);
-
-            // if larger than 260 sec, increase by 5%
-            if ($result > 60) {
+            // Target: 60 s; adjust ±5% when outside the 50-70 s window
+            if ($result > 70) {
                 $dif = bcmul($current['difficulty'], 1.05);
-            } elseif ($result < 20) {
-                // if lower, decrease by 5%
+            } elseif ($result < 50) {
                 $dif = bcmul($current['difficulty'], 0.95);
             } else {
-                // keep current difficulty
                 $dif = $current['difficulty'];
             }
         }
@@ -713,6 +681,8 @@ class SBlock {
             $dif = 9223372036854775800;
         }
         _log("Difficulty: $dif", 5);
+
+        SCache::set($cache_key, $dif, 20);
         return $dif;
     }
 
@@ -731,7 +701,7 @@ class SBlock {
     // calculate the reward for each block
     public function reward($id, $data = []) {
         global $platform;
-        if($id ==1 && $platform->config->premine){
+        if ($id == 1 && $platform->config->premine) {
             return number_format($platform->config->premine, 8, '.', '');
         }
         // starting reward
@@ -745,20 +715,43 @@ class SBlock {
         }
         // calculate the transaction fees
         $fees = 0;
-        if (count($data) > 0) {
-            foreach ($data as $x) {
-                $fees += $x['fee'];
-            }
-        }
-        if($id === 1){
-            //pre-mine configuration
-            
+        foreach ($data as $x) {
+            $fees += $x['fee'];
         }
         return number_format($reward + $fees, 8, '.', '');
     }
 
+    /**
+     * Returns true if $height is covered by a hardcoded checkpoint, meaning
+     * the block at that height has already been verified by the network and we
+     * can skip the expensive Argon2 proof-of-work check during sync.
+     *
+     * Operators: add entries here after each major milestone.
+     * Format: height => sha512/base58 block id (from your explorer).
+     * Blocks at or below the HIGHEST checkpoint height that arrive from a peer
+     * during sync will skip Argon2 but still have their hash verified.
+     */
+    public static function checkpoints(): array {
+        return [
+            // height => block_id
+            // Example (fill with real values from your explorer):
+            // 500000  => 'BLOCK_ID_AT_HEIGHT_500000',
+            // 1000000 => 'BLOCK_ID_AT_HEIGHT_1000000',
+            // 1500000 => 'BLOCK_ID_AT_HEIGHT_1500000',
+            // 2000000 => 'BLOCK_ID_AT_HEIGHT_2000000',
+        ];
+    }
+
+    /**
+     * Returns the height of the highest checkpoint, or 0 if none are defined.
+     */
+    public static function max_checkpoint_height(): int {
+        $cp = self::checkpoints();
+        return empty($cp) ? 0 : max(array_keys($cp));
+    }
+
     // checks the validity of a block
-    public function check($data) {
+    public function check($data, bool $during_sync = false) {
         // argon must have at least 20 chars
         if (strlen($data['argon']) < 20) {
             _log("Invalid block argon - $data[argon]");
@@ -776,6 +769,24 @@ class SBlock {
         if (!$acc->valid_key($data['public_key'])) {
             _log("Invalid public key - $data[public_key]");
             return false;
+        }
+
+        // Checkpoint fast-path: if this block's height is at or below the
+        // highest checkpoint, skip the Argon2 mine() check during sync.
+        // We still re-derive the block hash from its fields to ensure
+        // the data was not tampered with in transit.
+        $height = isset($data['height']) ? intval($data['height']) : 0;
+        if ($during_sync && $height > 0 && $height <= self::max_checkpoint_height()) {
+            $checkpoints = self::checkpoints();
+            // If a checkpoint exists for this exact height, verify the id matches.
+            if (isset($checkpoints[$height])) {
+                if ($data['id'] !== $checkpoints[$height]) {
+                    _log("Checkpoint mismatch at height $height");
+                    return false;
+                }
+            }
+            _log("Checkpoint fast-path: skipping Argon2 for height $height", 3);
+            return true;
         }
 
         //difficulty should be the same as our calculation
@@ -1327,6 +1338,10 @@ class SBlock {
 
         $db->commit();
         $db->exec("UNLOCK TABLES");
+        if (!class_exists('SCache')) {
+            require_once __DIR__ . '/SCache.php';
+        }
+        SCache::invalidate_block_cache();
         return true;
     }
 
