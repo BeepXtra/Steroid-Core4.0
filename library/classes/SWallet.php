@@ -190,53 +190,73 @@ class SWallet {
     // returns all the transactions of a specific address
     public function get_transactions($id, $limit = 100) {
         global $db;
-        $block = new SBlock();
+        $block   = new SBlock();
         $current = $block->current();
         $public_key = $this->public_key($id);
-        $alias = $this->account2alias($id);
-        $limit = intval($limit);
-        if ($limit > 100 || $limit < 1) {
-            $limit = 100;
+        $alias   = $this->account2alias($id);
+        $limit   = max(1, min(100, intval($limit)));
+
+        // A single OR across 17M+ rows prevents the query planner from using
+        // any index efficiently.  Three separate indexed sub-queries combined
+        // with UNION (which deduplicates) are orders of magnitude faster.
+        // Each sub-query limits independently so we pull at most 3×$limit rows
+        // before the outer ORDER+LIMIT collapses them to the final $limit.
+        $bind = [
+            ":dst"   => $id,
+            ":src"   => $public_key,
+            ":limit" => $limit,
+        ];
+
+        $alias_clause = "";
+        if (!empty($alias)) {
+            $bind[":alias"] = $alias;
+            $alias_clause = "
+            UNION
+            (SELECT * FROM transactions WHERE dst=:alias AND version < 111 ORDER BY height DESC LIMIT :limit)";
         }
-        $res = $db->run(
-                "SELECT * FROM transactions WHERE dst=:dst or public_key=:src or dst=:alias ORDER by height DESC LIMIT :limit",
-                [":src" => $public_key, ":dst" => $id, ":limit" => $limit, ":alias" => $alias]
-        );
+
+        $sql = "SELECT * FROM (
+            (SELECT * FROM transactions WHERE dst=:dst AND version < 111 ORDER BY height DESC LIMIT :limit)
+            UNION
+            (SELECT * FROM transactions WHERE public_key=:src AND version < 111 ORDER BY height DESC LIMIT :limit)
+            $alias_clause
+        ) AS combined
+        ORDER BY height DESC
+        LIMIT :limit";
+
+        $res = $db->run($sql, $bind);
 
         $transactions = [];
         foreach ($res as $x) {
-            if($x['version'] != 57){
+            // Skip automated dividend payouts (internal, not user-visible)
+            if ($x['version'] == 57 || $x['version'] > 110) {
+                continue;
+            }
             $trans = [
-                "block" => $x['block'],
-                "height" => $x['height'],
-                "id" => $x['id'],
-                "dst" => $x['dst'],
-                "val" => $x['val'],
-                "fee" => $x['fee'],
-                "signature" => $x['signature'],
-                "message" => $x['message'],
-                "version" => $x['version'],
-                "date" => $x['date'],
+                "block"      => $x['block'],
+                "height"     => $x['height'],
+                "id"         => $x['id'],
+                "dst"        => $x['dst'],
+                "val"        => $x['val'],
+                "fee"        => $x['fee'],
+                "signature"  => $x['signature'],
+                "message"    => $x['message'],
+                "version"    => $x['version'],
+                "date"       => $x['date'],
                 "public_key" => $x['public_key'],
             ];
-            $trans['src'] = $this->get_address($x['public_key']);
+            $trans['src']           = $this->get_address($x['public_key']);
             $trans['confirmations'] = $current['height'] - $x['height'];
 
-            // version 0 -> reward transaction, version 1 -> normal transaction
             if ($x['version'] == 0) {
                 $trans['type'] = "mining";
-            } elseif ($x['version'] == 1) {
-                if ($x['dst'] == $id) {
-                    $trans['type'] = "credit";
-                } else {
-                    $trans['type'] = "debit";
-                }
+            } elseif ($x['version'] == 1 || $x['version'] == 2) {
+                $trans['type'] = ($x['dst'] == $id) ? "credit" : "debit";
             } else {
                 $trans['type'] = "other";
             }
             ksort($trans);
             $transactions[] = $trans;
-        }
         }
 
         return $transactions;
