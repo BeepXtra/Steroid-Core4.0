@@ -622,6 +622,36 @@ class SApi {
         return api_echo(['circulating_supply' => $circulation]);
     }
 
+    public function assetlist($limit = 50, $offset = 0) {
+        $res = $this->sassets->list_assets($limit, $offset);
+        return ($res !== false && $res !== []) ? api_echo($res) : api_err("No assets found");
+    }
+
+    public function assetstats($id) {
+        $res = $this->sassets->get_stats($id);
+        return $res ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function assetholders($id) {
+        $res = $this->sassets->get_holders($id);
+        return ($res !== false) ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function assetmarket($id, $type = '') {
+        $res = $this->sassets->get_market_orders($id, $type);
+        return ($res !== false) ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function assetdividends($id) {
+        $res = $this->sassets->get_dividend_history($id);
+        return ($res !== false) ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function myassets($account) {
+        $res = $this->sassets->get_account_assets($account);
+        return ($res !== false) ? api_echo($res) : api_err("Account not found");
+    }
+
 }
 
 ?>
