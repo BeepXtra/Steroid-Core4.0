@@ -40,6 +40,12 @@ class ApiController extends AbstractController {
                     case 'masternodes':
                         $data = $this->sapi->masternodes();
                         break;
+                    case 'totalsupply':
+                        $data = $this->sapi->totalsupply();
+                        break;
+                    case 'circsupply':
+                        $data = $this->sapi->circsupply();
+                        break;
                     default:
                         $data = $this->error('Incomplete request. Please check documentation', 2);
                         break;
