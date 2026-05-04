@@ -133,7 +133,7 @@ class SApi {
     public function sendtx($data) {
         $x = explode(':', $data);
         //' . $val0 . ':' . $fee1 . ':' . $dst2 . ':' . $public_key3 . ':' . $sign4 . ':' . $pkey5 . ':' . $date6 . ':' . $msg7 . ':18'
-        $info = $x['0'] . "-" . $x['1'] . "-" . $x['2'] . "-" . $x['7'] . "-" . $x['1'] . "-" . $x['3'] . "-" . $x['6'];
+        $info = $x['0'] . "-" . $x['1'] . "-" . $x['2'] . "-" . $x['7'] . "-" . $x['8'] . "-" . $x['3'] . "-" . $x['6'];
         if (ec_verify($info, $x[4], $x[3])) {
             return array('data' => true);
         } else {
@@ -407,6 +407,7 @@ class SApi {
     }
 
     public function randomnumber($height, $max, $min = 1, $seed = '') {
+        global $db;
         $height = san($height);
         $max = intval($max);
         $min = intval($min);
@@ -471,7 +472,8 @@ class SApi {
         //number of active wallets
         $acc = $db->single("SELECT COUNT(1) FROM accounts");
         //number of transactions recorded
-        $tr = $db->single("SELECT COUNT(1) FROM transactions");
+        //$tr = $db->single("SELECT COUNT(1) FROM transactions");
+        $tr = $db->single("SELECT TABLE_ROWS as 'COUNT(1)' FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'S4QL' AND TABLE_NAME = 'transactions'");
         //count masternodes
         $masternodes = $db->single("SELECT COUNT(1) FROM masternode");
         //txs in mempool
@@ -598,18 +600,56 @@ class SApi {
         return array('difficulty' => $diff);
     }
     
-    public function totalsupply(){
+    public function totalsupply() {
         global $db;
-        $r = $db->run("SELECT current_supply FROM wallet_stats WHERE 1");
-        print_r($r[0]['current_supply']);
-        die;
+        $supply = $db->single("SELECT current_supply FROM wallet_stats LIMIT 1");
+        return api_echo(['total_supply' => $supply]);
     }
-    
-    public function circsupply(){
+
+    public function circsupply() {
         global $db;
-        $r = $db->run("SELECT sum(balance) as circulation FROM `accounts` WHERE id NOT IN ('3G6XrZGoBwbBRG2WpXpvxGWcPiAovAiYyFAAVusSGXmeDpwe4o7iHmabyDRX1QzWL7rsGQcBfqAM2d13erw1Sthv','5XXSy8akLrRJec67UVRiNmSntkwzesJWQp9c29t3sMZfJnqUfn8FcMtiZ8vs8puvJPQYzypNv1WHUyLqFx3XM1Uz','3CQBwp1UfULgpN6ei5dFkHXzgFxMzuAjYAfBTtgJG4iMz6D3qqQ2HFEa6gpnFpZpwyaHstrxFvHceLEtsSd9HTqC') AND public_key != ''");
-        print_r($r[0]['circulation']);
-        die;
+        // Excludes known treasury/dev/burn addresses from circulating supply.
+        $excluded = [
+            '3G6XrZGoBwbBRG2WpXpvxGWcPiAovAiYyFAAVusSGXmeDpwe4o7iHmabyDRX1QzWL7rsGQcBfqAM2d13erw1Sthv',
+            '5XXSy8akLrRJec67UVRiNmSntkwzesJWQp9c29t3sMZfJnqUfn8FcMtiZ8vs8puvJPQYzypNv1WHUyLqFx3XM1Uz',
+            '3CQBwp1UfULgpN6ei5dFkHXzgFxMzuAjYAfBTtgJG4iMz6D3qqQ2HFEa6gpnFpZpwyaHstrxFvHceLEtsSd9HTqC',
+        ];
+        $placeholders = implode(',', array_fill(0, count($excluded), '?'));
+        $circulation  = $db->single(
+            "SELECT SUM(balance) FROM accounts WHERE id NOT IN ($placeholders) AND public_key != ''",
+            $excluded
+        );
+        return api_echo(['circulating_supply' => $circulation]);
+    }
+
+    public function assetlist($limit = 50, $offset = 0) {
+        $res = $this->sassets->list_assets($limit, $offset);
+        return ($res !== false && $res !== []) ? api_echo($res) : api_err("No assets found");
+    }
+
+    public function assetstats($id) {
+        $res = $this->sassets->get_stats($id);
+        return $res ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function assetholders($id) {
+        $res = $this->sassets->get_holders($id);
+        return ($res !== false) ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function assetmarket($id, $type = '') {
+        $res = $this->sassets->get_market_orders($id, $type);
+        return ($res !== false) ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function assetdividends($id) {
+        $res = $this->sassets->get_dividend_history($id);
+        return ($res !== false) ? api_echo($res) : api_err("Asset not found");
+    }
+
+    public function myassets($account) {
+        $res = $this->sassets->get_account_assets($account);
+        return ($res !== false) ? api_echo($res) : api_err("Account not found");
     }
 
 }
