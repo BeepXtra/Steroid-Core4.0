@@ -2246,6 +2246,57 @@ define({ "api": [
     "groupTitle": "API"
   },
   {
+    "type": "get",
+    "url": window.location.hostname+"/api/propwallet/$public_key",
+    "title": "34. propWallet",
+    "name": "propWallet",
+    "group": "API",
+    "description": "<p>Registers a public key with this node, ensuring the associated account address is stored before any transactions arrive. Useful when setting up a new wallet on the network so peers have the account record in advance. Returns a success acknowledgement; the caller should verify the account is present afterwards.</p>",
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "public_key",
+            "description": "<p>The account's public key (base58-encoded secp256k1 public key)</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Request-Example:",
+          "content": "GET /api/propwallet/PZ8Tyr4Nx8MHsRAGMpZmZ6TWY63dXWSCyjGMdVDanywM3CbqvswVqysqU8XS87FcjpqNijtpRSSQ36WexRDv3rJL5X8qpGvzvznuErSRMfb2G6aNoiaT3aEJ",
+          "type": "text"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "data",
+            "description": "<p>Confirmation message: &quot;Storing wallet attempted - check to verify&quot;</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Success-Response:",
+          "content": "{\"status\":\"ok\",\"data\":\"Storing wallet attempted - check to verify\"}",
+          "type": "json"
+        }
+      ]
+    },
+    "version": "1.0.1",
+    "filename": "./api",
+    "groupTitle": "API"
+  },
+  {
     "type": "php util.php",
     "url": "balance",
     "title": "Balance",
