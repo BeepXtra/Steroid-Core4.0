@@ -202,27 +202,30 @@ class SWallet {
         // Each sub-query limits independently so we pull at most 3×$limit rows
         // before the outer ORDER+LIMIT collapses them to the final $limit.
         $bind = [
-            ":dst"   => $id,
-            ":src"   => $public_key,
-            ":limit" => $limit,
+            ":dst"    => $id,
+            ":src"    => $public_key,
+            ":limit1" => $limit,
+            ":limit2" => $limit,
+            ":limit3" => $limit,
         ];
 
         $alias_clause = "";
         if (!empty($alias)) {
-            $bind[":alias"] = $alias;
+            $bind[":alias"]  = $alias;
+            $bind[":limit4"] = $limit;
             $alias_clause = "
             UNION
-            (SELECT * FROM transactions WHERE dst=:alias AND version < 111 ORDER BY height DESC LIMIT :limit)";
+            (SELECT * FROM transactions WHERE dst=:alias AND version < 111 ORDER BY height DESC LIMIT :limit4)";
         }
 
         $sql = "SELECT * FROM (
-            (SELECT * FROM transactions WHERE dst=:dst AND version < 111 ORDER BY height DESC LIMIT :limit)
+            (SELECT * FROM transactions WHERE dst=:dst AND version < 111 ORDER BY height DESC LIMIT :limit1)
             UNION
-            (SELECT * FROM transactions WHERE public_key=:src AND version < 111 ORDER BY height DESC LIMIT :limit)
+            (SELECT * FROM transactions WHERE public_key=:src AND version < 111 ORDER BY height DESC LIMIT :limit2)
             $alias_clause
         ) AS combined
         ORDER BY height DESC
-        LIMIT :limit";
+        LIMIT :limit3";
 
         $res = $db->run($sql, $bind);
 
