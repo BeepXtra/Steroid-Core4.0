@@ -46,6 +46,9 @@ class ApiController extends AbstractController {
                     case 'circsupply':
                         $data = $this->sapi->circsupply();
                         break;
+                    case 'assetlist':
+                        $data = $this->sapi->assetlist();
+                        break;
                     default:
                         $data = $this->error('Incomplete request. Please check documentation', 2);
                         break;
@@ -101,6 +104,24 @@ class ApiController extends AbstractController {
                     case 'asset':
                         $data = $this->sapi->asset($request->url_elements[2]);
                         break;
+                    case 'assetstats':
+                        $data = $this->sapi->assetstats($request->url_elements[2]);
+                        break;
+                    case 'assetholders':
+                        $data = $this->sapi->assetholders($request->url_elements[2]);
+                        break;
+                    case 'assetmarket':
+                        $data = $this->sapi->assetmarket($request->url_elements[2]);
+                        break;
+                    case 'assetdividends':
+                        $data = $this->sapi->assetdividends($request->url_elements[2]);
+                        break;
+                    case 'myassets':
+                        $data = $this->sapi->myassets($request->url_elements[2]);
+                        break;
+                    case 'assetlist':
+                        $data = $this->sapi->assetlist(intval($request->url_elements[2]));
+                        break;
                     case 'getblocktransactions':
                         $data = $this->sapi->getblocktransactions($request->url_elements[2]);
                         break;
@@ -110,10 +131,26 @@ class ApiController extends AbstractController {
                 }
                 break;
             case 4:
-                if ($request->url_elements[1] == 'checkaddress') {
-                    $data = $this->sapi->checkaddress($request->url_elements[2], $request->url_elements[3]);
-                } else {
-                    $data = $this->error('Incomplete request. Please check documentation', 2);
+                switch ($request->url_elements[1]) {
+                    case 'checkaddress':
+                        $data = $this->sapi->checkaddress($request->url_elements[2], $request->url_elements[3]);
+                        break;
+                    case 'assetbalance':
+                        // /api/assetbalance/{assetId}/{accountId}
+                        $data = $this->sapi->assetbalance($request->url_elements[2] . ':' . $request->url_elements[3]);
+                        break;
+                    case 'assetmarket':
+                        // /api/assetmarket/{id}/bid  or  /api/assetmarket/{id}/ask
+                        $type = in_array($request->url_elements[3], ['bid', 'ask']) ? $request->url_elements[3] : '';
+                        $data = $this->sapi->assetmarket($request->url_elements[2], $type);
+                        break;
+                    case 'assetlist':
+                        // /api/assetlist/{limit}/{offset}
+                        $data = $this->sapi->assetlist(intval($request->url_elements[2]), intval($request->url_elements[3]));
+                        break;
+                    default:
+                        $data = $this->error('Incomplete request. Please check documentation', 2);
+                        break;
                 }
                 break;
             case 5:
