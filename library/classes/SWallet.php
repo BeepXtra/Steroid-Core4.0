@@ -190,42 +190,32 @@ class SWallet {
     // returns all the transactions of a specific address
     public function get_transactions($id, $limit = 100) {
         global $db;
-        $block   = new SBlock();
-        $current = $block->current();
+        $block      = new SBlock();
+        $current    = $block->current();
         $public_key = $this->public_key($id);
-        $alias   = $this->account2alias($id);
-        $limit   = max(1, min(100, intval($limit)));
+        $alias      = $this->account2alias($id);
+        $limit      = max(1, min(100, intval($limit)));
 
-        // A single OR across 17M+ rows prevents the query planner from using
-        // any index efficiently.  Three separate indexed sub-queries combined
-        // with UNION (which deduplicates) are orders of magnitude faster.
-        // Each sub-query limits independently so we pull at most 3×$limit rows
-        // before the outer ORDER+LIMIT collapses them to the final $limit.
-        $bind = [
-            ":dst"    => $id,
-            ":src"    => $public_key,
-            ":limit1" => $limit,
-            ":limit2" => $limit,
-            ":limit3" => $limit,
-        ];
+        $bind = [":dst" => $id, ":src" => $public_key];
 
         $alias_clause = "";
         if (!empty($alias)) {
-            $bind[":alias"]  = $alias;
-            $bind[":limit4"] = $limit;
-            $alias_clause = "
-            UNION
-            (SELECT * FROM transactions WHERE dst=:alias AND version < 111 ORDER BY height DESC LIMIT :limit4)";
+            $bind[":alias"] = $alias;
+            $alias_clause = "UNION (SELECT * FROM transactions WHERE dst=:alias ORDER BY height DESC LIMIT $limit)";
         }
 
+        // Inline $limit as a literal integer — PDO named params in LIMIT clauses
+        // inside UNION subqueries are unreliable across MySQL/MariaDB versions.
+        // Each branch hits its own index (dst or public_key); the outer wrapper
+        // collapses duplicates and returns the final $limit rows.
         $sql = "SELECT * FROM (
-            (SELECT * FROM transactions WHERE dst=:dst AND version < 111 ORDER BY height DESC LIMIT :limit1)
+            (SELECT * FROM transactions WHERE dst=:dst ORDER BY height DESC LIMIT $limit)
             UNION
-            (SELECT * FROM transactions WHERE public_key=:src AND version < 111 ORDER BY height DESC LIMIT :limit2)
+            (SELECT * FROM transactions WHERE public_key=:src ORDER BY height DESC LIMIT $limit)
             $alias_clause
         ) AS combined
         ORDER BY height DESC
-        LIMIT :limit3";
+        LIMIT $limit";
 
         $res = $db->run($sql, $bind);
 
