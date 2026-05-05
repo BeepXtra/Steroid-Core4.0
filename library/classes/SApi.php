@@ -133,7 +133,7 @@ class SApi {
     public function sendtx($data) {
         $x = explode(':', $data);
         //' . $val0 . ':' . $fee1 . ':' . $dst2 . ':' . $public_key3 . ':' . $sign4 . ':' . $pkey5 . ':' . $date6 . ':' . $msg7 . ':18'
-        $info = $x['0'] . "-" . $x['1'] . "-" . $x['2'] . "-" . $x['7'] . "-" . $x['8'] . "-" . $x['3'] . "-" . $x['6'];
+        $info = $x['0'] . "-" . $x['1'] . "-" . $x['2'] . "-" . $x['7'] . "-" . $x['1'] . "-" . $x['3'] . "-" . $x['6'];
         if (ec_verify($info, $x[4], $x[3])) {
             return array('data' => true);
         } else {
