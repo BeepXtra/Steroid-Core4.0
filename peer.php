@@ -98,7 +98,7 @@ if ($q == "peer") {
     $stat = ($res)?'success':'fail';
     _log('RES RESULT '.$stat.' HOSTNAME'.$hostname.' IP'.$ip);
     if ($res == 1) {
-        if ($data['repeer'] == 1) {
+        if (isset($data['repeer']) && $data['repeer'] == 1) {
             $res = peer_post($hostname."/peer.php?q=peer", ["hostname" => $_config->hostname]);
             if ($res !== false) {
                 print_r(json_encode(api_echo("re-peer-ok")));die;
