@@ -75,7 +75,7 @@ class SWallet {
 
     // check the validity of a base58 encoded key. At the moment, it checks only the characters to be base58.
     public function valid_key($id) {
-        return (bool) preg_match('/^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/', $id);
+        return (bool) preg_match('/^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]*$/', $id);
     }
 
     //check alias validity
