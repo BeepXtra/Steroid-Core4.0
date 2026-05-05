@@ -190,48 +190,52 @@ class SWallet {
     // returns all the transactions of a specific address
     public function get_transactions($id, $limit = 100) {
         global $db;
-        $block      = new SBlock();
-        $current    = $block->current();
+        $block = new SBlock();
+        $current = $block->current();
         $public_key = $this->public_key($id);
-        $alias      = $this->account2alias($id);
-        $limit      = max(1, min(100, intval($limit)));
-
+        $alias = $this->account2alias($id);
+        $limit = intval($limit);
+        if ($limit > 100 || $limit < 1) {
+            $limit = 100;
+        }
         $res = $db->run(
-            "SELECT * FROM transactions WHERE dst=:dst OR public_key=:src OR dst=:alias ORDER BY height DESC LIMIT $limit",
-            [":src" => $public_key, ":dst" => $id, ":alias" => $alias]
+                "SELECT * FROM transactions WHERE dst=:dst or public_key=:src or dst=:alias ORDER by height DESC LIMIT :limit",
+                [":src" => $public_key, ":dst" => $id, ":limit" => $limit, ":alias" => $alias]
         );
 
         $transactions = [];
         foreach ($res as $x) {
-            // Skip automated dividend payouts (internal, not user-visible)
-            if ($x['version'] == 57 || $x['version'] > 110) {
-                continue;
-            }
+            if($x['version'] != 57){
             $trans = [
-                "block"      => $x['block'],
-                "height"     => $x['height'],
-                "id"         => $x['id'],
-                "dst"        => $x['dst'],
-                "val"        => $x['val'],
-                "fee"        => $x['fee'],
-                "signature"  => $x['signature'],
-                "message"    => $x['message'],
-                "version"    => $x['version'],
-                "date"       => $x['date'],
+                "block" => $x['block'],
+                "height" => $x['height'],
+                "id" => $x['id'],
+                "dst" => $x['dst'],
+                "val" => $x['val'],
+                "fee" => $x['fee'],
+                "signature" => $x['signature'],
+                "message" => $x['message'],
+                "version" => $x['version'],
+                "date" => $x['date'],
                 "public_key" => $x['public_key'],
             ];
-            $trans['src']           = $this->get_address($x['public_key']);
+            $trans['src'] = $this->get_address($x['public_key']);
             $trans['confirmations'] = $current['height'] - $x['height'];
 
             if ($x['version'] == 0) {
                 $trans['type'] = "mining";
-            } elseif ($x['version'] == 1 || $x['version'] == 2) {
-                $trans['type'] = ($x['dst'] == $id) ? "credit" : "debit";
+            } elseif ($x['version'] == 1) {
+                if ($x['dst'] == $id) {
+                    $trans['type'] = "credit";
+                } else {
+                    $trans['type'] = "debit";
+                }
             } else {
                 $trans['type'] = "other";
             }
             ksort($trans);
             $transactions[] = $trans;
+        }
         }
 
         return $transactions;

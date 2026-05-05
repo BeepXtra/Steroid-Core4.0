@@ -326,16 +326,6 @@ if ($dbversion == 13) {
     $dbversion++;
 }
 
-if ($dbversion == 14) {
-    // Composite indexes so ORDER BY height DESC on large wallets uses an
-    // index range scan instead of a filesort on millions of rows.
-    $db->run("ALTER TABLE `transactions`
-        ADD INDEX `idx_dst_height`        (`dst`(64), `height`),
-        ADD INDEX `idx_pubkey_height`      (`public_key`(64), `height`);");
-
-    $dbversion++;
-}
-
 // update the db version to the latest one
 if ($dbversion != $_config->dbversion) {
     $db->run("UPDATE config SET val=:val WHERE cfg='dbversion'", [":val" => $dbversion]);
