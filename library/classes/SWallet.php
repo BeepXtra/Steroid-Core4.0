@@ -196,28 +196,10 @@ class SWallet {
         $alias      = $this->account2alias($id);
         $limit      = max(1, min(100, intval($limit)));
 
-        $bind = [":dst" => $id, ":src" => $public_key];
-
-        $alias_clause = "";
-        if (!empty($alias)) {
-            $bind[":alias"] = $alias;
-            $alias_clause = "UNION (SELECT * FROM transactions WHERE dst=:alias ORDER BY height DESC LIMIT $limit)";
-        }
-
-        // Inline $limit as a literal integer — PDO named params in LIMIT clauses
-        // inside UNION subqueries are unreliable across MySQL/MariaDB versions.
-        // Each branch hits its own index (dst or public_key); the outer wrapper
-        // collapses duplicates and returns the final $limit rows.
-        $sql = "SELECT * FROM (
-            (SELECT * FROM transactions WHERE dst=:dst ORDER BY height DESC LIMIT $limit)
-            UNION
-            (SELECT * FROM transactions WHERE public_key=:src ORDER BY height DESC LIMIT $limit)
-            $alias_clause
-        ) AS combined
-        ORDER BY height DESC
-        LIMIT $limit";
-
-        $res = $db->run($sql, $bind);
+        $res = $db->run(
+            "SELECT * FROM transactions WHERE dst=:dst OR public_key=:src OR dst=:alias ORDER BY height DESC LIMIT $limit",
+            [":src" => $public_key, ":dst" => $id, ":alias" => $alias]
+        );
 
         $transactions = [];
         foreach ($res as $x) {
