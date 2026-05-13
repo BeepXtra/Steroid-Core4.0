@@ -199,8 +199,14 @@ class SWallet {
             $limit = 100;
         }
         $res = $db->run(
-                "SELECT * FROM transactions WHERE dst=:dst or public_key=:src or dst=:alias ORDER by height DESC LIMIT :limit",
-                [":src" => $public_key, ":dst" => $id, ":limit" => $limit, ":alias" => $alias]
+                "(SELECT * FROM transactions WHERE dst=:dst ORDER BY height DESC LIMIT :limit)
+                 UNION
+                 (SELECT * FROM transactions WHERE public_key=:src ORDER BY height DESC LIMIT :limit2)
+                 UNION
+                 (SELECT * FROM transactions WHERE dst=:alias ORDER BY height DESC LIMIT :limit3)
+                 ORDER BY height DESC LIMIT :limit4",
+                [":dst" => $id, ":src" => $public_key, ":alias" => $alias,
+                 ":limit" => $limit, ":limit2" => $limit, ":limit3" => $limit, ":limit4" => $limit]
         );
 
         $transactions = [];
