@@ -9,6 +9,31 @@ defined('_SECURED') or die('Restricted access');
  */
 class SBlock {
 
+    // P0.1 stabilization: name of the MySQL advisory lock that serializes block
+    // application (add/delete/pop) across processes. Used instead of a global
+    // LOCK TABLES so that readers (API/explorer/wallet) are never blocked — they
+    // see committed state via InnoDB MVCC. Unlike LOCK TABLES, a GET_LOCK is NOT
+    // released by START TRANSACTION, so writer serialization is actually stronger.
+    const APPLY_LOCK = 'steroid_block_apply';
+
+    // Acquire the block-apply advisory lock. Returns false (and does NOT proceed)
+    // if it cannot be obtained within $timeout seconds.
+    private function acquire_apply_lock($timeout = 30) {
+        global $db;
+        $got = $db->single("SELECT GET_LOCK(:n, :t)", [":n" => self::APPLY_LOCK, ":t" => $timeout]);
+        if ($got != 1) {
+            _log("Could not acquire block-apply lock (busy/timeout) - got=" . var_export($got, true));
+            return false;
+        }
+        return true;
+    }
+
+    // Release the block-apply advisory lock (replaces every former UNLOCK TABLES).
+    private function release_apply_lock() {
+        global $db;
+        $db->single("SELECT RELEASE_LOCK(:n)", [":n" => self::APPLY_LOCK]);
+    }
+
     public function add_log($hash, $log) {
         global $db;
         $hash = san($hash);
@@ -64,8 +89,10 @@ class SBlock {
                 return false;
             }
         }
-        // lock table to avoid race conditions on blocks
-        $db->exec("LOCK TABLES blocks WRITE, accounts WRITE, transactions WRITE, mempool WRITE, masternode WRITE, peers write, config WRITE, assets WRITE, assets_balance WRITE, assets_market WRITE, votes WRITE, logs WRITE");
+        // serialize block application with an advisory lock (was: global LOCK TABLES)
+        if (!$this->acquire_apply_lock()) {
+            return false;
+        }
 
         $reward = $this->reward($height, $data);
 
@@ -159,7 +186,7 @@ class SBlock {
             $info = $transaction['val'] . "-" . $transaction['fee'] . "-" . $transaction['dst'] . "-" . $transaction['message'] . "-" . $transaction['version'] . "-" . $transaction['public_key'] . "-" . $transaction['date'];
             if (!$acc->check_signature($info, $reward_signature, $public_key)) {
                 _log("Reward signature failed");
-                $db->exec("UNLOCK TABLES");
+                $this->release_apply_lock();
                 return false;
             }
         }
@@ -186,7 +213,7 @@ class SBlock {
             // rollback and exit if it fails
             _log("Block DB insert failed");
             $db->rollback();
-            $db->exec("UNLOCK TABLES");
+            $this->release_apply_lock();
             return false;
         }
 
@@ -196,7 +223,7 @@ class SBlock {
             // rollback and exit if it fails
             _log("Reward DB insert failed");
             $db->rollback();
-            $db->exec("UNLOCK TABLES");
+            $this->release_apply_lock();
             return false;
         }
         //masternode rewards
@@ -228,7 +255,7 @@ class SBlock {
                     // rollback and exit if it fails
                     _log("Masternode Cold reward DB insert failed");
                     $db->rollback();
-                    $db->exec("UNLOCK TABLES");
+                    $this->release_apply_lock();
                     return false;
                 }
 
@@ -262,7 +289,7 @@ class SBlock {
                 // rollback and exit if it fails
                 _log("Masternode reward DB insert failed");
                 $db->rollback();
-                $db->exec("UNLOCK TABLES");
+                $this->release_apply_lock();
                 return false;
             }
             $res = $this->reset_fails_masternodes($mn_winner, $height, $hash);
@@ -271,7 +298,7 @@ class SBlock {
                 // rollback and exit if it fails
                 _log("Masternode log DB insert failed");
                 $db->rollback();
-                $db->exec("UNLOCK TABLES");
+                $this->release_apply_lock();
                 return false;
             }
         }
@@ -312,7 +339,7 @@ class SBlock {
             SCache::invalidate_block_cache();
         }
         // relese the locking as everything is finished
-        $db->exec("UNLOCK TABLES");
+        $this->release_apply_lock();
         return true;
     }
 
@@ -1296,7 +1323,10 @@ class SBlock {
             return true;
         }
         $db->beginTransaction();
-        $db->exec("LOCK TABLES blocks WRITE, accounts WRITE, transactions WRITE, mempool WRITE, masternode WRITE, peers write, config WRITE, assets WRITE, assets_balance WRITE, assets_market WRITE, votes WRITE,logs WRITE");
+        if (!$this->acquire_apply_lock()) {
+            $db->rollback();
+            return false;
+        }
 
         foreach ($r as $x) {
             $res = $trx->reverse($x['id']);
@@ -1314,21 +1344,21 @@ class SBlock {
                         $db->run("TRUNCATE TABLE {$table}");
                     }
                     $db->run("SET foreign_key_checks=1;");
-                    $db->exec("UNLOCK TABLES");
+                    $this->release_apply_lock();
 
                     $db->run("UPDATE config SET val=0 WHERE cfg='sanity_sync'");
                     @unlink(SANITY_LOCK_PATH);
                     system("php sanity.php  > /dev/null 2>&1  &");
                     exit;
                 }
-                $db->exec("UNLOCK TABLES");
+                $this->release_apply_lock();
                 return false;
             }
             $res = $db->run("DELETE FROM blocks WHERE id=:id", [":id" => $x['id']]);
             if ($res != 1) {
                 _log("Delete block failed.");
                 $db->rollback();
-                $db->exec("UNLOCK TABLES");
+                $this->release_apply_lock();
                 return false;
             }
             $this->reverse_log($x['id']);
@@ -1337,7 +1367,7 @@ class SBlock {
 
 
         $db->commit();
-        $db->exec("UNLOCK TABLES");
+        $this->release_apply_lock();
         if (!class_exists('SCache')) {
             require_once __DIR__ . '/SCache.php';
         }
@@ -1357,14 +1387,17 @@ class SBlock {
         }
         // avoid race conditions on blockchain manipulations
         $db->beginTransaction();
-        $db->exec("LOCK TABLES blocks WRITE, accounts WRITE, transactions WRITE, mempool WRITE, masternode WRITE, peers write, config WRITE, assets WRITE, assets_balance WRITE, assets_market WRITE, votes WRITE, logs WRITE");
+        if (!$this->acquire_apply_lock()) {
+            $db->rollback();
+            return false;
+        }
 
         // reverse all transactions of the block
         $res = $trx->reverse($x['id']);
         if ($res === false) {
             // rollback if you can't reverse the transactions
             $db->rollback();
-            $db->exec("UNLOCK TABLES");
+            $this->release_apply_lock();
             return false;
         }
         // remove the actual block
@@ -1372,12 +1405,12 @@ class SBlock {
         if ($res != 1) {
             //rollback if you can't delete the block
             $db->rollback();
-            $db->exec("UNLOCK TABLES");
+            $this->release_apply_lock();
             return false;
         }
         // commit and release if all good
         $db->commit();
-        $db->exec("UNLOCK TABLES");
+        $this->release_apply_lock();
         return true;
     }
 
