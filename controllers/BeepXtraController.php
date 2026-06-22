@@ -1,128 +1,157 @@
 <?php
 defined('_SECURED') or die('Restricted access');
 
-/**
- * BeepXtraController — BeepXtra loyalty platform integration.
- * Hooks for transaction events, reward distribution, outlet callbacks.
- */
 class BeepXtraController {
-    private SCore  $app;
-    private Config $cfg;
+    private Database $db;
 
-    public function __construct(SCore $app) {
-        $this->app = $app;
-        $this->cfg = $app->make('config');
+    public function __construct(Database $db) {
+        $this->db = $db;
     }
 
-    // ─── Transaction Hook ─────────────────────────────────────
+    public function handle(string $action, array $params): void {
+        header('Content-Type: application/json');
+        header('Access-Control-Allow-Origin: *');
 
-    /**
-     * Called after a transaction is confirmed in a block.
-     * Notifies BeepXtra core API for loyalty point processing.
-     */
-    public function onTransactionConfirmed(array $tx, array $block): void {
-        if (!$this->cfg->beepxtra_enabled) return;
-
-        $payload = [
-            'event'      => 'tx_confirmed',
-            'tx_id'      => $tx['id'],
-            'src'        => $tx['src'],
-            'dst'        => $tx['dst'],
-            'val'        => $tx['val'],
-            'fee'        => $tx['fee'],
-            'version'    => $tx['version'],
-            'block_id'   => $block['id'],
-            'height'     => $block['height'],
-            'timestamp'  => $block['date'],
-        ];
-        $this->post('/steroid/tx_confirmed', $payload);
-    }
-
-    // ─── Block Hook ──────────────────────────────────────────
-
-    public function onBlockConfirmed(array $block): void {
-        if (!$this->cfg->beepxtra_enabled) return;
-
-        $payload = [
-            'event'      => 'block_confirmed',
-            'block_id'   => $block['id'],
-            'height'     => $block['height'],
-            'generator'  => $block['generator'],
-            'timestamp'  => $block['date'],
-        ];
-        $this->post('/steroid/block_confirmed', $payload);
-    }
-
-    // ─── Reward Hook ─────────────────────────────────────────
-
-    public function onRewardDistributed(string $address, float $amount, string $type): void {
-        if (!$this->cfg->beepxtra_enabled) return;
-
-        $payload = [
-            'event'   => 'reward_distributed',
-            'address' => $address,
-            'amount'  => $amount,
-            'type'    => $type, // 'mining' | 'masternode' | 'dividend'
-        ];
-        $this->post('/steroid/reward', $payload);
-    }
-
-    // ─── Outlet Lookup ───────────────────────────────────────
-
-    /**
-     * Lookup a BeepXtra outlet by Steroid address.
-     * Returns outlet data or null if not found.
-     */
-    public function lookupOutlet(string $address): ?array {
-        $response = $this->get('/steroid/outlet?address=' . urlencode($address));
-        if (!$response) return null;
-        $data = json_decode($response, true);
-        return $data['outlet'] ?? null;
-    }
-
-    // ─── Wallet Lookup ───────────────────────────────────────
-
-    public function lookupWallet(string $address): ?array {
-        $response = $this->get('/steroid/wallet?address=' . urlencode($address));
-        if (!$response) return null;
-        $data = json_decode($response, true);
-        return $data['wallet'] ?? null;
-    }
-
-    // ─── HTTP Helpers ────────────────────────────────────────
-
-    private function post(string $path, array $data): bool {
-        $url = rtrim($this->cfg->beepxtra_api, '/') . $path;
-        $ch  = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($data),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_TIMEOUT        => 5,
-            CURLOPT_SSL_VERIFYPEER => false,
-        ]);
-        $body = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($code !== 200) {
-            error_log("BeepXtraController: {$path} returned HTTP {$code}");
-            return false;
+        try {
+            switch ($action) {
+                case 'loyalty_reward':  echo $this->loyaltyReward($params); break;
+                case 'merchant_pay':    echo $this->merchantPay($params); break;
+                case 'check_balance':   echo $this->checkBalance($params); break;
+                case 'wallet_info':     echo $this->walletInfo($params); break;
+                case 'tx_history':      echo $this->txHistory($params); break;
+                case 'asset_balance':   echo $this->assetBalance($params); break;
+                case 'sdk_send':        echo $this->sdkSend($params); break;
+                default:
+                    http_response_code(404);
+                    echo json_encode(['ok' => false, 'error' => 'Unknown action']);
+            }
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
         }
-        return true;
     }
 
-    private function get(string $path): string|false {
-        $url = rtrim($this->cfg->beepxtra_api, '/') . $path;
-        $ch  = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 5,
-            CURLOPT_SSL_VERIFYPEER => false,
+    // ── Loyalty Reward ────────────────────────────────────────────────────────
+    // Called by BeepXtra platform when a shopper earns reward BPC
+
+    private function loyaltyReward(array $p): string {
+        $required = ['src', 'dst', 'val', 'signature', 'public_key'];
+        foreach ($required as $f) {
+            if (empty($p[$f])) return json_encode(['ok' => false, 'error' => "Missing: $f"]);
+        }
+
+        $tx = new STx($this->db);
+        $txData = $tx->build([
+            'type'       => TX_TRANSFER,
+            'src'        => $p['src'],
+            'dst'        => $p['dst'],
+            'val'        => $p['val'],
+            'message'    => 'loyalty_reward',
+            'signature'  => $p['signature'],
+            'public_key' => $p['public_key'],
+            'date'       => time(),
         ]);
-        $body = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        return $code === 200 ? $body : false;
+
+        $ok = $tx->addToMempool($txData);
+        return json_encode(['ok' => $ok, 'error' => $ok ? null : 'Rejected']);
+    }
+
+    // ── Merchant Pay ──────────────────────────────────────────────────────────
+    // BeepXtra checkout: shopper pays merchant in BPC
+
+    private function merchantPay(array $p): string {
+        $required = ['src', 'dst', 'val', 'signature', 'public_key', 'merchant_ref'];
+        foreach ($required as $f) {
+            if (empty($p[$f])) return json_encode(['ok' => false, 'error' => "Missing: $f"]);
+        }
+
+        $tx = new STx($this->db);
+        $txData = $tx->build([
+            'type'       => TX_TRANSFER,
+            'src'        => $p['src'],
+            'dst'        => $p['dst'],
+            'val'        => $p['val'],
+            'message'    => json_encode(['type' => 'merchant_pay', 'ref' => $p['merchant_ref']]),
+            'signature'  => $p['signature'],
+            'public_key' => $p['public_key'],
+            'date'       => time(),
+        ]);
+
+        $ok = $tx->addToMempool($txData);
+        if ($ok) {
+            (new SPeers($this->db))->propagate('api/tx', $txData);
+        }
+        return json_encode(['ok' => $ok]);
+    }
+
+    // ── Check Balance ─────────────────────────────────────────────────────────
+
+    private function checkBalance(array $p): string {
+        if (empty($p['address'])) return json_encode(['ok' => false, 'error' => 'Address required']);
+        $wallet = new SWallet($this->db);
+
+        // Resolve alias if needed
+        if (strpos($p['address'], '@') === 0 || !preg_match('/^[A-Za-z0-9]{20,64}$/', $p['address'])) {
+            $resolved = $wallet->resolveAlias($p['address']);
+            if (!$resolved) return json_encode(['ok' => false, 'error' => 'Alias not found']);
+            $p['address'] = $resolved;
+        }
+
+        return json_encode(['ok' => true, 'data' => [
+            'address'  => $p['address'],
+            'balance'  => $wallet->getBalance($p['address']),
+            'pending'  => $wallet->getPendingBalance($p['address']),
+        ]]);
+    }
+
+    // ── Wallet Info ───────────────────────────────────────────────────────────
+
+    private function walletInfo(array $p): string {
+        if (empty($p['address'])) return json_encode(['ok' => false, 'error' => 'Address required']);
+        $wallet  = new SWallet($this->db);
+        $account = $wallet->getAccount($p['address']);
+        if (!$account) return json_encode(['ok' => false, 'error' => 'Account not found']);
+
+        $mn = $this->db->row("SELECT status, collateral FROM masternode WHERE address=?", [$p['address']]);
+
+        return json_encode(['ok' => true, 'data' => [
+            'address'    => $account['address'],
+            'alias'      => $account['alias'],
+            'balance'    => $account['balance'],
+            'pending'    => $wallet->getPendingBalance($p['address']),
+            'masternode' => $mn ?: null,
+            'first_seen' => $account['first_seen'],
+            'last_seen'  => $account['last_seen'],
+        ]]);
+    }
+
+    // ── TX History ────────────────────────────────────────────────────────────
+
+    private function txHistory(array $p): string {
+        if (empty($p['address'])) return json_encode(['ok' => false, 'error' => 'Address required']);
+        $limit = min((int)($p['limit'] ?? 50), 200);
+        $txs   = (new STx($this->db))->getByAddress($p['address'], $limit);
+        return json_encode(['ok' => true, 'data' => $txs]);
+    }
+
+    // ── Asset Balance ─────────────────────────────────────────────────────────
+
+    private function assetBalance(array $p): string {
+        if (empty($p['address']) || empty($p['asset_id'])) {
+            return json_encode(['ok' => false, 'error' => 'address and asset_id required']);
+        }
+        $balance = (new SAssets($this->db))->getAssetBalance($p['asset_id'], $p['address']);
+        return json_encode(['ok' => true, 'data' => ['balance' => $balance]]);
+    }
+
+    // ── SDK Send ──────────────────────────────────────────────────────────────
+    // BeepWallet SDK compatibility endpoint
+
+    private function sdkSend(array $p): string {
+        $data = json_decode(file_get_contents('php://input'), true) ?? $p;
+        $stx  = new STx($this->db);
+        $ok   = $stx->addToMempool($data);
+        if ($ok) (new SPeers($this->db))->propagate('api/tx', $data);
+        return json_encode(['ok' => $ok]);
     }
 }
