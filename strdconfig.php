@@ -1,69 +1,69 @@
 <?php
 defined('_SECURED') or die('Restricted access');
 
-class Config {
-    // ─── Database ────────────────────────────────────────────
-    public $db_hostname = 'localhost';
-    public $db_username = 'global';
-    public $db_password = 'WwaHf8hYJrxwXxR9';
-    public $db_name     = 'steroidV2';
-    public $db_port     = 3306;
+// ─── Database ────────────────────────────────────────────────────────────────
+define('DB_HOST',   'localhost');
+define('DB_SOCKET', '/tmp/mysql.sock');
+define('DB_NAME',   'steroidV2');
+define('DB_USER',   'global');
+define('DB_PASS',   'WwaHf8hYJrxwXxR9');
+define('DB_CHARSET','utf8mb4');
 
-    // ─── Node Identity ───────────────────────────────────────
-    public $hostname    = 'https://v2.steroid.io';
-    public $version     = '4.0.0';
-    public $node_name   = 'SteroidV2-Node';
+// ─── Node Identity ───────────────────────────────────────────────────────────
+define('NODE_VERSION',  '4.0.0');
+define('NODE_HOST',     'https://steroidv2.steroid.io');
+define('NODE_PORT',     8080);
+define('CHAIN_NAME',    'SteroidV2');
 
-    // ─── Mining ──────────────────────────────────────────────
-    public $mining_reward      = 25;          // base block reward (STR)
-    public $masternode_reward   = 33;          // % of block reward to MN
-    public $fee_percent         = 0.3;         // 0.3% tx fee
-    public $min_fee             = 0.00010000;
-    public $block_time_target   = 240;         // seconds
-    public $argon2_time         = 4;
-    public $argon2_memory       = 524288;      // 512 MB
-    public $argon2_threads      = 1;
-    public $difficulty_retarget = 10;          // blocks between difficulty adjustments
+// ─── Blockchain Parameters ───────────────────────────────────────────────────
+define('BLOCK_TIME',             60);        // seconds
+define('BLOCK_REWARD',           '50.00000000');
+define('MAX_SUPPLY',             '21000000.00000000');
+define('FEE_PCT',                0.003);     // 0.3%
+define('MIN_FEE',                '0.00100000');
+define('MASTERNODE_COLLATERAL',  '250000.00000000');
+define('MASTERNODE_REWARD_PCT',  50);        // % of block reward
+define('MINER_REWARD_PCT',       50);        // % of block reward
+define('DIFFICULTY_RETARGET',    10);        // blocks
+define('MAX_MEMPOOL_AGE',        3600);      // seconds
+define('MAX_PEERS',              50);
+define('PEER_FAIL_LIMIT',        5);
 
-    // ─── Masternode ──────────────────────────────────────────
-    public $mn_collateral       = 100000;      // STR required to run MN
-    public $mn_lock_blocks      = 720;         // blocks before MN can withdraw
-    public $cold_staking_min    = 1000;        // min STR for cold staking
+// ─── Argon2 Mining ───────────────────────────────────────────────────────────
+define('ARGON_MEMORY',    512);
+define('ARGON_TIME',      1);
+define('ARGON_THREADS',   1);
+define('ARGON_PREFIX',    '$argon2i$');
 
-    // ─── Network ─────────────────────────────────────────────
-    public $max_peers           = 50;
-    public $peer_timeout        = 10;          // seconds
-    public $propagation_timeout = 5;
-    public $allowed_hosts       = [];          // empty = allow all
-    public $passive_peering     = true;
-    public $allow_hostname_change = false;
+// ─── Transaction Versions ────────────────────────────────────────────────────
+define('TX_REWARD',          0);
+define('TX_TRANSFER',        1);
+define('TX_ALIAS_PAY',       2);
+define('TX_ALIAS_SET',       3);
+define('TX_ASSET_CREATE',    50);
+define('TX_ASSET_TRANSFER',  51);
+define('TX_ASSET_BID',       52);
+define('TX_ASSET_ASK',       53);
+define('TX_ASSET_CANCEL',    54);
+define('TX_ASSET_INFLATE',   55);
+define('TX_ASSET_DIVIDEND',  56);
+define('TX_ASSET_FIXED',     57);
+define('TX_ASSET_FILL',      58);
+define('TX_MN_REGISTER',     100);
+define('TX_MN_PAUSE',        101);
+define('TX_MN_RESUME',       102);
+define('TX_MN_BLACKLIST',    103);
+define('TX_MN_UNBLACKLIST',  104);
+define('TX_GOV_PROPOSAL',    105);
+define('TX_GOV_VOTE',        106);
+define('TX_GOV_RESULT',      107);
+define('TX_COLD_STAKE',      108);
+define('TX_MN_FAIL',         111);
 
-    // ─── Mempool ─────────────────────────────────────────────
-    public $mempool_max_age     = 3600;        // seconds before tx expires
-    public $mempool_max_size    = 10000;       // max pending txs
+// ─── CDN / External ──────────────────────────────────────────────────────────
+define('CDN_URL',    'https://cdn.beepxtra.com');
+define('API_URL',    NODE_HOST . '/api');
 
-    // ─── API ─────────────────────────────────────────────────
-    public $api_rate_limit      = 100;         // requests/minute per IP
-    public $api_log_enabled     = true;
-
-    // ─── Session ─────────────────────────────────────────────
-    public $session_timeout     = 10800;       // 3 hours
-
-    // ─── Paths ───────────────────────────────────────────────
-    public $base_path           = '/data/wwwroot/steroidV2';
-    public $log_path            = '/data/wwwlogs/steroidV2';
-
-    // ─── BeepXtra Loyalty Integration ────────────────────────
-    public $beepxtra_api        = 'http://core-l.beeplocal.net';
-    public $beepxtra_enabled    = true;
-
-    // ─── Singleton ───────────────────────────────────────────
-    private static $instance = null;
-    public static function getInstance(): self {
-        if (self::$instance === null) {
-            self::$instance = new self();
-        }
-        return self::$instance;
-    }
-    private function __construct() {}
-}
+// ─── Paths ───────────────────────────────────────────────────────────────────
+define('BASE_PATH',  '/data/wwwroot/steroidV2');
+define('LOG_PATH',   BASE_PATH . '/logs');
