@@ -1,62 +1,84 @@
 <?php
 define('_SECURED', true);
+define('CRON_MODE', true);
 
-// Load bootstrap
-require_once __DIR__ . '/../index.php';
+require_once dirname(__DIR__) . '/strdconfig.php';
+require_once dirname(__DIR__) . '/library/classes/Database.php';
+require_once dirname(__DIR__) . '/library/classes/SCore.php';
+require_once dirname(__DIR__) . '/library/classes/SWallet.php';
+require_once dirname(__DIR__) . '/library/classes/STx.php';
+require_once dirname(__DIR__) . '/library/classes/SBlock.php';
+require_once dirname(__DIR__) . '/library/classes/SChain.php';
+require_once dirname(__DIR__) . '/library/classes/SPeers.php';
+require_once dirname(__DIR__) . '/library/classes/SMine.php';
+require_once dirname(__DIR__) . '/library/classes/SAssets.php';
+require_once dirname(__DIR__) . '/library/classes/SMasternode.php';
+require_once dirname(__DIR__) . '/library/classes/SGovernance.php';
 
-// Run cron tasks
-$app = SCore::boot();
+SCore::boot();
+$db = Database::getInstance();
 
 $task = $argv[1] ?? 'all';
 
 switch ($task) {
-    case 'heartbeat':
-        $app->make('peers')->heartbeat();
-        echo 'heartbeat OK' . PHP_EOL;
-        break;
-
     case 'mempool':
-        $purged = $app->make('tx')->purgeExpiredMempool();
-        echo "Purged $purged expired mempool txs" . PHP_EOL;
+        $cleaned = (new STx($db))->cleanMempool();
+        echo "Mempool: cleaned $cleaned stale transactions\n";
         break;
 
-    case 'peer_sync':
-        $peers = $app->make('peers')->getActive(10);
-        $chain = $app->make('chain');
-        $total = 0;
-        foreach ($peers as $peer) {
-            $added = $chain->syncWithPeer($peer['hostname']);
-            $total += $added;
-            echo "Synced {$added} blocks from {$peer['hostname']}" . PHP_EOL;
+    case 'peers':
+        $peers = new SPeers($db);
+        $all   = $peers->getActive(50);
+        $ok = $fail = 0;
+        foreach ($all as $peer) {
+            $peers->ping($peer['address'], (int)$peer['port']) ? $ok++ : $fail++;
         }
-        echo "Total new blocks: $total" . PHP_EOL;
+        $peers->sweepDead();
+        echo "Peers: $ok OK, $fail failed\n";
         break;
 
-    case 'peer_discover':
-        $peers = $app->make('peers');
-        $active = $peers->getActive(5);
-        $found  = 0;
-        foreach ($active as $peer) {
-            $found += $peers->discoverFromPeer($peer['hostname']);
+    case 'masternodes':
+        $swept = (new SMasternode($db))->sweepInactive();
+        echo "Masternodes: swept $swept inactive\n";
+        break;
+
+    case 'heartbeat':
+        (new SPeers($db))->heartbeat();
+        echo "Heartbeat recorded\n";
+        break;
+
+    case 'governance':
+        $gov    = new SGovernance($db);
+        $params = SGovernance::PARAMS;
+        foreach ($params as $param) {
+            if ($gov->checkAndApply($param)) {
+                echo "Governance: applied param $param\n";
+            }
         }
-        echo "Discovered $found new peers" . PHP_EOL;
-        break;
-
-    case 'dividends':
-        $app->make('assets')->processAutoDividends();
-        echo 'Auto-dividends processed' . PHP_EOL;
         break;
 
     case 'all':
     default:
-        $app->make('peers')->heartbeat();
-        $app->make('tx')->purgeExpiredMempool();
-        $peers = $app->make('peers');
-        $chain = $app->make('chain');
-        foreach ($peers->getActive(5) as $peer) {
-            $chain->syncWithPeer($peer['hostname']);
+        // Mempool
+        $cleaned = (new STx($db))->cleanMempool();
+        echo "Mempool: cleaned $cleaned stale\n";
+
+        // Peers
+        $peers = new SPeers($db);
+        $peers->sweepDead();
+        $peers->heartbeat();
+        echo "Peers: swept + heartbeat\n";
+
+        // Masternodes
+        $swept = (new SMasternode($db))->sweepInactive();
+        echo "Masternodes: swept $swept\n";
+
+        // Governance tally
+        $gov = new SGovernance($db);
+        foreach (SGovernance::PARAMS as $param) {
+            if ($gov->checkAndApply($param)) echo "Governance: applied $param\n";
         }
-        $app->make('assets')->processAutoDividends();
-        echo '[' . date('Y-m-d H:i:s') . '] Cron complete' . PHP_EOL;
+
+        echo "Cron complete: " . date('Y-m-d H:i:s') . "\n";
         break;
 }
