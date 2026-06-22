@@ -476,8 +476,12 @@ elseif ($cmd == 'get-address') {
         die("Sanity running. Wait for it to finish");
     }
     touch("tmp/sanity-lock");
-    // lock table to avoid race conditions on blocks
-    $db->exec("LOCK TABLES blocks WRITE, accounts WRITE, transactions WRITE, mempool WRITE, masternode WRITE, peers write, config WRITE, assets WRITE, assets_balance WRITE, assets_market WRITE");
+    // serialize against block application with the same advisory lock used by SBlock
+    // (SBlock::APPLY_LOCK = 'steroid_block_apply'); replaces the former global LOCK TABLES.
+    if ($db->single("SELECT GET_LOCK(:n, :t)", [":n" => 'steroid_block_apply', ":t" => 30]) != 1) {
+        unlink("tmp/sanity-lock");
+        die("Could not acquire block-apply lock\n");
+    }
 
 
     $r=$db->run("SELECT * FROM accounts");
@@ -505,7 +509,7 @@ elseif ($cmd == 'get-address') {
             }
         }
     }
-    $db->exec("UNLOCK TABLES");
+    $db->single("SELECT RELEASE_LOCK(:n)", [":n" => 'steroid_block_apply']);
     echo "All done";
     unlink("tmp/sanity-lock");
 } elseif ($cmd=="compare-blocks") {
