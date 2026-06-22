@@ -2,100 +2,92 @@
 defined('_SECURED') or die('Restricted access');
 
 class SCore {
-    private static array $registry = [];
-    private static bool  $booted   = false;
+    private static $registry  = array();
+    private static $singletons = array();
+    private static $booted    = false;
 
-    public static function boot(): void {
+    public static function boot() {
         if (self::$booted) return;
         self::$booted = true;
 
-        // Error handling
-        set_error_handler([self::class, 'errorHandler']);
-        set_exception_handler([self::class, 'exceptionHandler']);
+        set_error_handler(array(__CLASS__, 'errorHandler'));
+        set_exception_handler(array(__CLASS__, 'exceptionHandler'));
 
-        // Register core services
-        self::bind('db', fn() => Database::getInstance());
-        self::bind('wallet',     fn() => new SWallet(self::db()));
-        self::bind('chain',      fn() => new SChain(self::db()));
-        self::bind('tx',         fn() => new STx(self::db()));
-        self::bind('block',      fn() => new SBlock(self::db()));
-        self::bind('peers',      fn() => new SPeers(self::db()));
-        self::bind('mine',       fn() => new SMine(self::db()));
-        self::bind('assets',     fn() => new SAssets(self::db()));
-        self::bind('masternode', fn() => new SMasternode(self::db()));
-        self::bind('governance', fn() => new SGovernance(self::db()));
+        self::bind('db',         function() { return Database::getInstance(); });
+        self::bind('wallet',     function() { return new SWallet(Database::getInstance()); });
+        self::bind('chain',      function() { return new SChain(Database::getInstance()); });
+        self::bind('tx',         function() { return new STx(Database::getInstance()); });
+        self::bind('block',      function() { return new SBlock(Database::getInstance()); });
+        self::bind('peers',      function() { return new SPeers(Database::getInstance()); });
+        self::bind('mine',       function() { return new SMine(Database::getInstance()); });
+        self::bind('assets',     function() { return new SAssets(Database::getInstance()); });
+        self::bind('masternode', function() { return new SMasternode(Database::getInstance()); });
+        self::bind('governance', function() { return new SGovernance(Database::getInstance()); });
     }
 
-    public static function bind(string $key, callable $factory): void {
+    public static function bind($key, $factory) {
         self::$registry[$key] = $factory;
     }
 
-    public static function make(string $key) {
+    public static function make($key) {
         if (!isset(self::$registry[$key])) {
             throw new RuntimeException("Service not registered: $key");
         }
-        return (self::$registry[$key])();
+        return call_user_func(self::$registry[$key]);
     }
 
-    // Singleton accessor shortcuts
-    private static array $singletons = [];
-
-    public static function __callStatic(string $name, array $args) {
+    public static function __callStatic($name, $args) {
         if (!isset(self::$singletons[$name])) {
             self::$singletons[$name] = self::make($name);
         }
         return self::$singletons[$name];
     }
 
-    // ── Error Handling ───────────────────────────────────────────────────────
-
-    public static function errorHandler(int $errno, string $errstr, string $errfile, int $errline): bool {
-        self::log('error', "$errstr in $errfile:$errline", ['errno' => $errno]);
+    public static function errorHandler($errno, $errstr, $errfile, $errline) {
+        self::log('error', "$errstr in $errfile:$errline", array('errno' => $errno));
         return true;
     }
 
-    public static function exceptionHandler(Throwable $e): void {
-        self::log('exception', $e->getMessage(), [
+    public static function exceptionHandler($e) {
+        self::log('exception', $e->getMessage(), array(
             'file'  => $e->getFile(),
             'line'  => $e->getLine(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        ));
         http_response_code(500);
         header('Content-Type: application/json');
-        echo json_encode(['ok' => false, 'error' => 'Internal server error']);
+        echo json_encode(array('ok' => false, 'error' => 'Internal server error'));
     }
 
-    public static function log(string $type, string $message, array $context = []): void {
+    public static function log($type, $message, $context = array()) {
         try {
-            Database::getInstance()->insert('logs', [
+            Database::getInstance()->insert('logs', array(
                 'type'    => $type,
                 'message' => $message,
                 'context' => json_encode($context),
                 'date'    => time(),
-            ]);
+            ));
         } catch (Throwable $e) {
-            // Silent fail — logging must never crash the node
             error_log("[SCore] Log write failed: " . $e->getMessage());
         }
     }
 
-    public static function config(string $key, $default = null) {
+    public static function config($key, $default = null) {
         $row = Database::getInstance()->row(
-            "SELECT cfg_val FROM config WHERE cfg_key=?", [$key]
+            "SELECT cfg_val FROM config WHERE cfg_key=?", array($key)
         );
         return $row ? $row['cfg_val'] : $default;
     }
 
-    public static function setConfig(string $key, string $value): void {
+    public static function setConfig($key, $value) {
         Database::getInstance()->query(
             "INSERT INTO config (cfg_key, cfg_val) VALUES (?,?) ON DUPLICATE KEY UPDATE cfg_val=?",
-            [$key, $value, $value]
+            array($key, $value, $value)
         );
     }
 
-    public static function response(bool $ok, $data = null, string $error = ''): string {
+    public static function response($ok, $data = null, $error = '') {
         header('Content-Type: application/json');
-        if ($ok) return json_encode(['ok' => true, 'data' => $data]);
-        return json_encode(['ok' => false, 'error' => $error]);
+        if ($ok) return json_encode(array('ok' => true, 'data' => $data));
+        return json_encode(array('ok' => false, 'error' => $error));
     }
 }
