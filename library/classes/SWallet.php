@@ -1,298 +1,167 @@
 <?php
-
 defined('_SECURED') or die('Restricted access');
 
-/**
- * Class for steroid platform
- *
- * @author exevior
- */
 class SWallet {
+    private Database $db;
 
-    public $address;
-    public $public_key;
-    public $private_key;
-
-    public function add($public_key, $block) {
-        global $db;
-        $id = $this->get_address($public_key);
-        $bind = [":id" => $id, ":public_key" => $public_key, ":block" => $block, ":public_key2" => $public_key];
-
-        $db->run(
-                "INSERT INTO accounts SET id=:id, public_key=:public_key, block=:block, balance=0 ON DUPLICATE KEY UPDATE public_key=if(public_key='',:public_key2,public_key)",
-                $bind
-        );
+    public function __construct(Database $db) {
+        $this->db = $db;
     }
 
-    // inserts just the account without public key
-    public function add_id($id, $block) {
-        global $db;
-        $bind = [":id" => $id, ":block" => $block];
-        $db->run("INSERT ignore INTO accounts SET id=:id, public_key='', block=:block, balance=0", $bind);
+    // ── Key Generation ───────────────────────────────────────────────────────
+
+    public function generateKeyPair(): array {
+        $privateKey = bin2hex(random_bytes(32));
+        $publicKey  = $this->privateKeyToPublic($privateKey);
+        $address    = $this->publicKeyToAddress($publicKey);
+        return compact('privateKey', 'publicKey', 'address');
     }
 
-    // generates Account's address from the public key
-    public function get_address($public_key) {
-        // hashes 9 times in sha512 (binary) and encodes in base58
+    public function privateKeyToPublic(string $privateKeyHex): string {
+        // secp256k1 via OpenSSL
+        $privBin = hex2bin($privateKeyHex);
+        $pem     = $this->privToPem($privBin);
+        $key     = openssl_pkey_get_private($pem);
+        $details = openssl_pkey_get_details($key);
+        return base64_encode($details['key']);
+    }
+
+    public function publicKeyToAddress(string $publicKey): string {
+        // sha512 x9 → ripemd160 → base58check
+        $hash = $publicKey;
         for ($i = 0; $i < 9; $i++) {
-            $public_key = hash('sha512', $public_key, true);
+            $hash = hash('sha512', $hash, true);
         }
-        return base58_encode($public_key);
+        $hash    = hash('ripemd160', $hash, true);
+        $payload = "\x3f" . $hash; // version byte 0x3f → addresses start with 'S'
+        $checksum = substr(hash('sha256', hash('sha256', $payload, true), true), 0, 4);
+        return $this->base58encode($payload . $checksum);
     }
 
-    // checks the ecdsa secp256k1 signature for a specific public key
-    public function check_signature($data, $signature, $public_key) {
-        return ec_verify($data, $signature, $public_key);
+    // ── Signing / Verification ───────────────────────────────────────────────
+
+    public function sign(string $data, string $privateKeyHex): string {
+        $privBin = hex2bin($privateKeyHex);
+        $pem     = $this->privToPem($privBin);
+        $key     = openssl_pkey_get_private($pem);
+        openssl_sign($data, $signature, $key, OPENSSL_ALGO_SHA256);
+        return base64_encode($signature);
     }
 
-    // generates a new account and a public/private key pair
-    public function generate_account() {
-        // using secp256k1 curve for ECDSA
-        $args = [
-            "curve_name" => "secp256k1",
-            "private_key_type" => OPENSSL_KEYTYPE_EC,
-        ];
-
-        // generates a new key pair
-        $key1 = openssl_pkey_new($args);
-
-        // exports the private key encoded as PEM
-        openssl_pkey_export($key1, $pvkey);
-
-        // converts the PEM to a base58 format
-        $private_key = pem2coin($pvkey);
-
-        // exports the private key encoded as PEM
-        $pub = openssl_pkey_get_details($key1);
-
-        // converts the PEM to a base58 format
-        $public_key = pem2coin($pub['key']);
-
-        // generates the account's address based on the public key
-        $address = $this->get_address($public_key);
-        return ["address" => $address, "public_key" => $public_key, "private_key" => $private_key];
+    public function verify(string $data, string $signature, string $publicKeyPem): bool {
+        $key = openssl_pkey_get_public($publicKeyPem);
+        if (!$key) return false;
+        return openssl_verify($data, base64_decode($signature), $key, OPENSSL_ALGO_SHA256) === 1;
     }
 
-    // check the validity of a base58 encoded key. At the moment, it checks only the characters to be base58.
-    public function valid_key($id) {
-        return (bool) preg_match('/^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]*$/', $id);
-    }
+    // ── Account Helpers ──────────────────────────────────────────────────────
 
-    //check alias validity
-    public function free_alias($id) {
-        global $db;
-        $orig = strtoupper($id);
-        $id = strtoupper($id);
-        $id = san($id);
-        if (strlen($id) < 4 || strlen($id) > 25) {
-            return false;
-        }
-        if ($orig != $id) {
-            return false;
-        }
-        // making sure the same alias can only be used in one place
-        if ($db->single("SELECT COUNT(1) FROM accounts WHERE alias=:alias", [":alias" => $id]) == 0) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    //check if an account already has an alias
-    public function has_alias($public_key) {
-        global $db;
-        $public_key = san($public_key);
-        $res = $db->single("SELECT COUNT(1) FROM accounts WHERE public_key=:public_key AND alias IS NOT NULL", [":public_key" => $public_key]);
-        if ($res != 0) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    //check alias validity
-    public function valid_alias($id) {
-        global $db;
-        $orig = strtoupper($id);
-        $banned = ["MERCURY", "DEVS", "DEVELOPMENT", "MARKETING", "MERCURY80", "DEVBPC", "DEVELOPER", "DEVELOPERS", "BPCDEV", "DONATION", "MERCATOX", "OCTAEX", "MERCURY", "STEROID", "STEROID4", "BEEP", "SBPC", "BEEPXCOIN", "BEEPIQ", "ESCROW", "OKEX", "BINANCE", "CRYPTOPIA", "HUOBI", "BITFINEX", "HITBTC", "UPBIT", "COINBASE", "KRAKEN", "BITSTAMP", "BITTREX", "POLONIEX","BEEPCOIN","BEEPXTRA","BXTRA"];
-        $id = strtoupper($id);
-        $id = san($id);
-        if (in_array($id, $banned)) {
-            return false;
-        }
-        if (strlen($id) < 4 || strlen($id) > 25) {
-            return false;
-        }
-        if ($orig != $id) {
-            return false;
-        }
-        return $db->single("SELECT COUNT(1) FROM accounts WHERE alias=:alias", [":alias" => $id]);
-    }
-
-    //returns the account of an alias
-    public function alias2account($alias) {
-        global $db;
-        $alias = strtoupper($alias);
-        $res = $db->single("SELECT id FROM accounts WHERE alias=:alias LIMIT 1", [":alias" => $alias]);
-        return $res;
-    }
-
-    //returns the alias of an account
-    public function account2alias($id) {
-        global $db;
-        $id = san($id);
-        $res = $db->single("SELECT alias FROM accounts WHERE id=:id LIMIT 1", [":id" => $id]);
-        return $res;
-    }
-
-    // check the validity of an address. At the moment, it checks only the characters to be base58 and the length to be >=70 and <=128.
-    public function valid($id) {
-        $len = strlen($id);
-        if ($len < 70 || $len > 128) {
-            return false;
-        }
-        return (bool) preg_match('/^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/', $id);
-    }
-
-    // returns the current account balance
-    public function balance($id) {
-        global $db;
-        $res = false;
-        if ($this->valid_alias($id)) {
-            //Check using alias
-            $id = strtoupper($id);
-            $res = $db->single("SELECT balance FROM accounts WHERE alias=:id", [":id" => $id]);
-        } elseif (strlen($id) >= 89 && $this->valid_key($id)) {
-            //Check using public_key
-            $res = $db->single("SELECT balance FROM accounts WHERE public_key=:id", [":id" => $id]);
-        } elseif ($this->valid($id)) {
-            //Check using address
-            $res = $db->single("SELECT balance FROM accounts WHERE id=:id", [":id" => $id]);
-        }
-
-        if ($res === false) {
-            $res = "0.00000000";
-        }
-
-        return number_format($res, 8, ".", "");
-    }
-
-    // returns the account balance - any pending debits from the mempool
-    public function pending_balance($id) {
-        global $db;
-        $res = $db->single(
-            "SELECT (IFNULL(SUM(val),0) - IFNULL((SELECT SUM(val+fee) FROM mempool WHERE src=:src),0)) FROM mempool WHERE dst=:dst",
-            [":src" => $id, ":dst" => $id]
+    public function getBalance(string $address): string {
+        $row = $this->db->row(
+            "SELECT balance FROM accounts WHERE address=?", [$address]
         );
-        return $res !== false ? $res : "0.00000000";
+        return $row ? $row['balance'] : '0.00000000';
     }
 
-    // returns all the transactions of a specific address
-    public function get_transactions($id, $limit = 100) {
-        global $db;
-        $block = new SBlock();
-        $current = $block->current();
-        $public_key = $this->public_key($id);
-        $alias = $this->account2alias($id);
-        $limit = intval($limit);
-        if ($limit > 100 || $limit < 1) {
-            $limit = 100;
-        }
-        $res = $db->run(
-                "(SELECT * FROM transactions WHERE dst=:dst ORDER BY height DESC LIMIT :limit)
-                 UNION
-                 (SELECT * FROM transactions WHERE public_key=:src ORDER BY height DESC LIMIT :limit2)
-                 UNION
-                 (SELECT * FROM transactions WHERE dst=:alias ORDER BY height DESC LIMIT :limit3)
-                 ORDER BY height DESC LIMIT :limit4",
-                [":dst" => $id, ":src" => $public_key, ":alias" => $alias,
-                 ":limit" => $limit, ":limit2" => $limit, ":limit3" => $limit, ":limit4" => $limit]
+    public function getPendingBalance(string $address): string {
+        $row = $this->db->row(
+            "SELECT COALESCE(SUM(val+fee),0) AS pending FROM mempool WHERE src=?", [$address]
         );
-
-        $transactions = [];
-        foreach ($res as $x) {
-            if($x['version'] != 57){
-            $trans = [
-                "block" => $x['block'],
-                "height" => $x['height'],
-                "id" => $x['id'],
-                "dst" => $x['dst'],
-                "val" => $x['val'],
-                "fee" => $x['fee'],
-                "signature" => $x['signature'],
-                "message" => $x['message'],
-                "version" => $x['version'],
-                "date" => $x['date'],
-                "public_key" => $x['public_key'],
-            ];
-            $trans['src'] = $this->get_address($x['public_key']);
-            $trans['confirmations'] = $current['height'] - $x['height'];
-
-            if ($x['version'] == 0) {
-                $trans['type'] = "mining";
-            } elseif ($x['version'] == 1) {
-                if ($x['dst'] == $id) {
-                    $trans['type'] = "credit";
-                } else {
-                    $trans['type'] = "debit";
-                }
-            } else {
-                $trans['type'] = "other";
-            }
-            ksort($trans);
-            $transactions[] = $trans;
-        }
-        }
-
-        return $transactions;
+        return $row ? $row['pending'] : '0.00000000';
     }
 
-    // returns the transactions from the mempool
-    public function get_mempool_transactions($id) {
-        global $db;
-        $transactions = [];
-        $res = $db->run(
-                "SELECT * FROM mempool WHERE src=:src ORDER by height DESC LIMIT 100",
-                [":src" => $id, ":dst" => $id]
+    public function getAccount(string $address): ?array {
+        return $this->db->row(
+            "SELECT * FROM accounts WHERE address=?", [$address]
         );
-        foreach ($res as $x) {
-            $trans = [
-                "block" => $x['block'],
-                "height" => $x['height'],
-                "id" => $x['id'],
-                "src" => $x['src'],
-                "dst" => $x['dst'],
-                "val" => $x['val'],
-                "fee" => $x['fee'],
-                "signature" => $x['signature'],
-                "message" => $x['message'],
-                "version" => $x['version'],
-                "date" => $x['date'],
-                "public_key" => $x['public_key'],
-            ];
-            $trans['type'] = "mempool";
-            // they are unconfirmed, so they will have -1 confirmations.
-            $trans['confirmations'] = -1;
-            ksort($trans);
-            $transactions[] = $trans;
+    }
+
+    public function getOrCreateAccount(string $address, string $publicKey): array {
+        $account = $this->getAccount($address);
+        if (!$account) {
+            $this->db->insert('accounts', [
+                'address'    => $address,
+                'public_key' => $publicKey,
+                'balance'    => '0.00000000',
+                'pending'    => '0.00000000',
+                'alias'      => '',
+                'first_seen' => time(),
+                'last_seen'  => time(),
+            ]);
+            $account = $this->getAccount($address);
         }
-        return $transactions;
+        return $account;
     }
 
-    // returns the public key for a specific account
-    public function public_key($id) {
-        global $db;
-        $res = $db->single("SELECT public_key FROM accounts WHERE id=:id", [":id" => $id]);
-        return $res;
+    public function resolveAlias(string $alias): ?string {
+        $row = $this->db->row(
+            "SELECT address FROM accounts WHERE alias=?", [$alias]
+        );
+        return $row ? $row['address'] : null;
     }
 
-    public function get_masternode($public_key) {
-        global $db;
-        $res = $db->row("SELECT * FROM masternode WHERE public_key=:public_key", [":public_key" => $public_key]);
-        if (empty($res['public_key'])) {
-            return false;
+    public function setAlias(string $address, string $alias): bool {
+        // Alias must be unique
+        if ($this->resolveAlias($alias)) return false;
+        $this->db->update('accounts', ['alias' => $alias], 'address=?', [$address]);
+        return true;
+    }
+
+    public function creditBalance(string $address, string $amount): void {
+        $this->db->query(
+            "UPDATE accounts SET balance=balance+?, last_seen=? WHERE address=?",
+            [$amount, time(), $address]
+        );
+    }
+
+    public function debitBalance(string $address, string $amount): void {
+        $this->db->query(
+            "UPDATE accounts SET balance=balance-?, last_seen=? WHERE address=?",
+            [$amount, time(), $address]
+        );
+    }
+
+    // ── Base58 ───────────────────────────────────────────────────────────────
+
+    public function base58encode(string $data): string {
+        $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        $decimal  = gmp_init(bin2hex($data), 16);
+        $output   = '';
+        while (gmp_cmp($decimal, 0) > 0) {
+            [$decimal, $rem] = gmp_div_qr($decimal, 58);
+            $output = $alphabet[gmp_intval($rem)] . $output;
         }
-        return $res;
+        for ($i = 0; $i < strlen($data) && $data[$i] === "\x00"; $i++) {
+            $output = '1' . $output;
+        }
+        return $output;
     }
 
+    public function base58decode(string $data): string {
+        $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        $decimal  = gmp_init(0);
+        for ($i = 0; $i < strlen($data); $i++) {
+            $decimal = gmp_add(gmp_mul($decimal, 58), strpos($alphabet, $data[$i]));
+        }
+        $hex = gmp_strval($decimal, 16);
+        if (strlen($hex) % 2) $hex = '0' . $hex;
+        $bytes = hex2bin($hex);
+        for ($i = 0; $i < strlen($data) && $data[$i] === '1'; $i++) {
+            $bytes = "\x00" . $bytes;
+        }
+        return $bytes;
+    }
+
+    // ── Internal ─────────────────────────────────────────────────────────────
+
+    private function privToPem(string $privBin): string {
+        $der  = "\x30\x77\x02\x01\x01\x04\x20" . $privBin
+              . "\xa0\x0a\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07"
+              . "\xa1\x44\x03\x42\x00";
+        // Minimal valid secp256k1 private key DER wrapper for OpenSSL
+        $b64  = base64_encode($der);
+        return "-----BEGIN EC PRIVATE KEY-----\n"
+             . chunk_split($b64, 64, "\n")
+             . "-----END EC PRIVATE KEY-----\n";
+    }
 }
