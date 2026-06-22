@@ -1,142 +1,97 @@
 <?php
-
-/**
- * PHP Blockchain Platform
- *
- * @author exevior
- */
 defined('_SECURED') or die('Restricted access');
-//include("library/classes/Block.php");
 
-class Schain {
+class SChain {
+    private Database $db;
 
-    public $db;
-    public $config;
-    public $platform;
-
-    //Our constructor 
-    //Initializes the chain stdclass (object) with the genesis block
-    public function __construct($platform) {
-        $this->chain = [$this->createGenesisBlock()];
-        $this->difficulty = 2;
-        $this->platform = $platform;
+    public function __construct(Database $db) {
+        $this->db = $db;
     }
 
-    //Generate genesis block
-    private function createGenesisBlock() {
-        //check if we have a genesis block from db and return
-        //else, initialize chain
-        return new Block(0, strtotime(date("Y-m-d h:m:s")), "Genesis Block");
+    public function getTop(): ?array {
+        return $this->db->row(
+            "SELECT * FROM blocks ORDER BY height DESC LIMIT 1"
+        );
     }
 
-    //Get the last block from the chain
-    public function getLastBlock() {
-        //get last from db or caching mechanism (sphinx???)
-        //for now
-        return $this->chain[count($this->chain) - 1];
+    public function getHeight(): int {
+        $row = $this->db->row("SELECT MAX(height) AS h FROM blocks");
+        return $row ? (int)$row['h'] : 0;
     }
 
-    //Get entire chain
-    public function getChain($height = null, $blocks = null) {
-        //get chain from db or caching mechanism (sphinx???)
-        //There should be limits to protect server load!!!
-        if (!$blocks) {
-            $blocks = 100;
+    public function getTotalSupply(): string {
+        $row = $this->db->row("SELECT COALESCE(SUM(balance),0) AS s FROM accounts");
+        return $row ? number_format((float)$row['s'], 8, '.', '') : '0.00000000';
+    }
+
+    public function getStatus(): array {
+        $top = $this->getTop();
+        return [
+            'height'       => $this->getHeight(),
+            'top_block'    => $top ? $top['hash'] : null,
+            'total_supply' => $this->getTotalSupply(),
+            'version'      => NODE_VERSION,
+            'hostname'     => NODE_HOST,
+        ];
+    }
+
+    public function isValidChain(): bool {
+        $blocks = $this->db->rows(
+            "SELECT hash, prev_hash, height FROM blocks ORDER BY height ASC"
+        );
+        $prev = str_repeat('0', 64);
+        foreach ($blocks as $block) {
+            if ($block['prev_hash'] !== $prev) return false;
+            $prev = $block['hash'];
         }
-        if ($height) {
-            $limit = $height.','.$blocks;
-        } else {
-            $limit = $blocks;
-        }
-        $sql = 'SELECT * FROM blocks LIMIT '.$limit;
-        $chain = $this->platform->getdata($sql);
-        $i = 0;
-        foreach($chain as $block){
-            $id = unpack('H*hex',$chain[0]['id']);
-            $chain[$i]['id'] = $id['hex'];
-            $gen =  unpack('H*hex',$chain[0]['generator']);
-            $chain[$i]['generator'] = $gen['hex'];
-            $sign = unpack('H*hex',$chain[0]['signature']);
-            $chain[$i]['signature'] = $sign['hex'];
-            $blockhash = unpack('H*hex',$chain[0]['blockhash']);
-            $chain[$i]['blockhash'] = $blockhash['hex'];
-            $i++;
-        }
-        
-        //$sql = "SELECT * FROM blocks WHERE CAST(`blocks`.`id` AS BINARY) = X'".$varid['hex']."';";
-        ///print_r($this->strd->getdata($sql));die;
-        //print_r(unpack('H*hex',$chain[0]['varid']));
-        
-        
-        return $chain;
-    }
-
-    //Push new block
-    //Usage push(new Block(index,timestamp,data));
-    public function push($block) {
-
-        $block->previousHash = $this->getLastBlock()->hash;
-        $this->mine($block);
-        array_push($this->chain, $block);
-
-
-
-        //mining should be segmentated into an indipendent process...
-        /*
-         * push function should only be executed when a block is found by mining process.
-         * There should be a validator that checks the integrity of the push and score it 
-         * for addition to db as final next block.
-         * Rewards could run here as a chain reaction... block added, generate transaction 
-         * in next block and issue rewards to associated miners.
-         */
-    }
-
-    //Used above by push()
-    public function mine($block) {
-        //Sample difficulty algorithm
-        //Keep generating new hash until has begins with 0000 
-        //(How many zeroes depends on difficulty specified in constructor)
-        while (substr($block->hash, 0, $this->difficulty) !== str_repeat("0", $this->difficulty)) {
-            $block->nonce++;
-            $block->hash = $block->calculateHash();
-        }
-
-        echo "Block mined: " . $block->hash . "\n";
-
-        //mining should move to a separate process
-        /*
-         * mining process should get available tasks from chain and process accordingly
-         * available tasks:
-         * - calculate hash for new blocks
-         * - record pending transactions in temporary block
-         * - validate hashes submitted from other miners if found correct
-         * - ???
-         */
-    }
-
-    //Validate the chain hasn't been altered or malformed
-    public function isValid() {
-        //TO REVISE
-        for ($i = 1; $i < count($this->chain); $i++) {
-            $currentBlock = $this->chain[$i];
-            $previousBlock = $this->chain[$i - 1];
-
-            if ($currentBlock->hash != $currentBlock->calculateHash()) {
-                return false;
-            }
-
-            if ($currentBlock->previousHash != $previousBlock->hash) {
-                return false;
-            }
-        }
-
-
-
-
-
         return true;
     }
 
-}
+    public function getRange(int $from, int $to): array {
+        return $this->db->rows(
+            "SELECT * FROM blocks WHERE height BETWEEN ? AND ? ORDER BY height ASC",
+            [$from, $to]
+        );
+    }
 
-?>
+    public function getBlockTransactions(int $blockId): array {
+        return $this->db->rows(
+            "SELECT * FROM transactions WHERE block=? ORDER BY id ASC",
+            [$blockId]
+        );
+    }
+
+    public function getStats(): array {
+        return [
+            'total_blocks'    => (int)$this->db->val("SELECT COUNT(*) FROM blocks"),
+            'total_tx'        => (int)$this->db->val("SELECT COUNT(*) FROM transactions"),
+            'total_accounts'  => (int)$this->db->val("SELECT COUNT(*) FROM accounts"),
+            'total_supply'    => $this->getTotalSupply(),
+            'mempool_count'   => (int)$this->db->val("SELECT COUNT(*) FROM mempool"),
+            'peer_count'      => (int)$this->db->val("SELECT COUNT(*) FROM peers WHERE blacklisted=0"),
+            'masternode_count'=> (int)$this->db->val("SELECT COUNT(*) FROM masternode WHERE status=1"),
+        ];
+    }
+
+    public function seedGenesis(): void {
+        if ($this->getHeight() > 0) return;
+
+        // Genesis block — no PoW required
+        $genesisHash = hash('sha256', 'steroid_v2_genesis_' . NODE_HOST);
+        $this->db->insert('blocks', [
+            'height'        => 0,
+            'hash'          => $genesisHash,
+            'prev_hash'     => str_repeat('0', 64),
+            'generator'     => 'genesis',
+            'signature'     => 'genesis',
+            'nonce'         => '0',
+            'difficulty'    => 0,
+            'argon'         => 'genesis',
+            'transactions'  => 0,
+            'date'          => time(),
+            'reward'        => '0.00000000',
+            'masternode_id' => 0,
+            'version'       => 1,
+        ]);
+    }
+}
