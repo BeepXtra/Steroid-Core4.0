@@ -334,7 +334,7 @@ Primary recommendation for the stack: **Go + Cosmos SDK + CometBFT**, because it
 delivers the above with mature, audited building blocks and the gentlest ramp for
 a PHP team:
 - **CometBFT (Tendermint) BFT-PoS** → instant finality; validators = masternodes.
-- **Cosmos SDK modules** give us, for free: `balances` (balances), `x/staking`
+- **Cosmos SDK modules** give us, for free: a balances/transfer module, `x/staking`
   (validator bonding ↔ the 250k masternode stake), `x/gov` (↔ on-chain votes),
   `x/authz`, `x/feegrant`. We build custom modules for the rest (assets/DEX/
   dividends, loyalty, alias).
@@ -381,7 +381,7 @@ committee size, epoch length, exact VRF construction.
   read capacity. The real "scales with adoption" engine.
 - **(C) Proof-of-usage loyalty:** users earn rewards for genuine activity (the
   BeepXtra loyalty engine) → adoption → fees → more masternodes/shards. Requires
-  anti-Sybil (merchant stake, rate limits, proof of genuine purchase).
+  anti-Sybil (merchant stake + slashing, rate limits, counterparty diversity).
 - **(D) Phone light clients:** consumer devices verify their own balances/txs
   trustlessly.
 - **EXCLUDED:** consumer-phone compute, storage/CDN, and hashrate (unreliable,
@@ -416,7 +416,7 @@ staking/loyalty rewards; keep the 0.3% fee; governance via `x/gov` + existing
 vote semantics. **No PoW.** Exact numbers to finalize.
 
 ### D5 — Feature-parity modules
-STATUS: **DECIDED 2026-06-22.** Reuse `balances`, `x/staking`, `x/gov`. Build custom
+STATUS: **DECIDED 2026-06-22.** Reuse built-in balances/staking/governance modules. Build custom
 modules: **assets** (create/transfer/on-chain DEX/dividends/auto-dividends/
 inflatable/fixed-price) and **alias**. **Loyalty stays OFF-chain** in the BeepXtra
 app — the chain exposes only payments + token primitives (no on-chain loyalty
@@ -426,8 +426,9 @@ module). Proof-of-usage rewards are handled separately → D5a.
 A native on-chain mechanism that rewards users for **genuine** activity — the
 scale-by-usage engine from D1a, and explicitly wanted by the owner. Distinct from
 BeepXtra's off-chain loyalty program. To design: definition of "genuine usage"
-(e.g. real purchases, not self-transfers/wash activity); anti-Sybil (merchant
-stake, rate limits, proof of genuine purchase); reward funding source
+(net economic activity, not self-transfers/wash loops); anti-Sybil via purely
+on-chain economics (merchant stake + slashing, rate limits, counterparty
+diversity, diminishing returns on repeated pairs); reward funding source
 (emission allocation and/or fee redistribution) and its emission/inflation impact;
 claim/redeem flow. STATUS: **PENDING DESIGN.**
 
@@ -507,7 +508,7 @@ sets up CI, linters, tests, and license.
    storage/hashrate **excluded**. This is the genuine scale-by-usage engine and
    ties directly to the BeepXtra loyalty product. (→ D1a)
 4. **Stack (provisional): Go + Cosmos SDK + CometBFT** — custom module for the
-   rotating-committee + VRF; reuse `balances`, `x/staking`, `x/gov`; custom modules
+   rotating-committee + VRF; reuse built-in balances/staking/governance modules; custom modules
    for assets/loyalty/alias. (→ D1; owner may veto.)
 5. **Economics (in principle): PoS** — masternodes as bonded validators, cold
    staking → delegation, 0.3% fee kept, governance via `x/gov`. (→ D4)
@@ -604,11 +605,13 @@ Risk (valid): hash-on-chain + single edge node = data lost if that node dies.
 **#5 — Proof-of-usage collusion / wash-trading.**
 Risk (valid): merchant+user loop txs paying 0.3% fee to farm emission.
 **Resolution (refines D5a) — principle: farming must cost more than it pays:**
-- Reward **counterparty diversity + counterparty diversity, not raw volume**;
-  **sharp diminishing returns** on repeated same-pair loops (loops → ~0).
-- Merchants **staked + staked**; fraudulent attestation → **slash/delist**.
-- Fund from a **bounded, merchant-funded loyalty pool**, not open-ended emission.
-- Off-chain **graph/anomaly detection** (loop/Sybil-ring) → on-chain delisting.
-- Accepted caveat: not fully trustless — a staked-merchant + bounded-pool +
-  diversity + slashing model, kept modest so it isn't worth attacking.
+- Reward **counterparty diversity**, not raw volume; **sharp diminishing returns**
+  on repeated same-pair loops (loops → ~0).
+- Merchants post a **permissionless on-chain stake/bond**; misbehaviour →
+  **slash + automatic on-chain delisting**. Purely economic.
+- Fund from a **bounded, merchant-funded loyalty pool**, not open-ended emission —
+  so farming only drains a capped pot a merchant won't fund for self-dealing.
+- **On-chain graph/anomaly heuristics** (loop/Sybil-ring) → automatic reward
+  suppression. Purely on-chain economics — no off-chain authority of any kind.
+- Design goal: rewards ≤ the economic cost of farming, so attacks don't pay.
 
