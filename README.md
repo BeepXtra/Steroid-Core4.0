@@ -1,48 +1,43 @@
-# node
+# Steroid Core — Next Generation (rebuild)
 
-The Steroid4.0 (BPC) masternode testnet.
+This branch (`lars/rebuild`) is the home of the **next-generation Steroid core**: a
+horizontally-scalable, **BFT proof-of-stake**, retail-focused **payments + loyalty**
+blockchain that will replace the live PHP/MySQL chain.
 
-## Install
-### script install
+> **Live chain:** the PHP/MySQL node on **`master`** (database `S4QL`, node
+> `galileo`) keeps running until cutover. **Do not break it.**
 
+## 📖 Read this first
+**`docs/FUTURE-ARCHITECTURE.md`** — the full handoff brief: diagnosis of the old
+chain, owner goals, the agreed architecture, and the complete **decision log
+(D1–D11)** with rationale. It is the source of truth for this rebuild.
 
+## Agreed design (summary — see the doc for full rationale)
+- **Stack:** Go + Cosmos SDK + CometBFT.
+- **Consensus:** DPoS **rotating committee** of ~5–6 staked masternodes, re-rolled
+  per epoch via an unpredictable **VRF**, instant BFT finality. **No PoW.**
+- **Participate-by-using:** merchant **edge nodes** + **proof-of-usage rewards** +
+  phone **light-clients** + **randomness fed by user transactions**.
+- **Economics:** PoS; masternodes = bonded validators (250k min self-bond); cold
+  staking → delegation; 0.3% fee kept; governance via `x/gov`.
+- **Storage:** proven **RocksDB/IAVL** engine; **AnyData** + **smart contracts
+  (CosmWasm)** delivered as modules on top (AnyData = on-chain hash + content on
+  the edge layer, to avoid bloat).
+- **Compatibility:** keep existing **base58 addresses** (secp256k1) + a **REST
+  gateway** mirroring today's API so BeepWallet / outlets / MerchD / the PHP SDK
+  keep working.
+- **Scale:** one solid chain first; **regional shards (IBC)** + the self-managing
+  **HAProxy edge** later.
+- **Migration:** snapshot `S4QL` → genesis (addresses preserved), short validate,
+  fast cutover (chain is lightly used now — do it before growth).
 
-### Manual Install
-**Hardware Requirements:**
-```
-2GB RAM
-1 CPU Core
-50GB DISK
-```
-**Requirements:**
+## First tasks
+See `docs/FUTURE-ARCHITECTURE.md` → **§II.5 "First tasks for the new code session"**.
 
-- PHP >= 7.2
-  - PDO extension
-  - GMP extension
-  - BCMath extension
-- MySQL/MariaDB >= 5.7.x 
+## Kept as references (from the live chain)
+- **`doc/`** — the current chain's API documentation (apidoc). This is the contract
+  the compatibility gateway must match.
+- **`sdk/`** — the current PHP SDK. Example client usage / endpoint shapes.
 
-1. Install MySQL or MariaDB and create a database and a user.
-2. Rename `include/config-sample.inc.php` to  `include/config.inc.php` and set the DB login data
-3. Change permissions to tmp and `tmp/db-update` to 777 (`chmod 777 tmp -R`)
-4. Access the http://ip-or-domain and refresh once
-
-## Usage
-
-This app should only be run in the main directory of the domain/subdomain, ex: http://111.111.111.111
-
-The node should have a public IP and be accessible over internet.
-
-## Links
-
-- [Official website](https://www.steroid.io)
-- [Block explorer](https://explorer.steroid.io) 
-- [BTC Talk Thread](https://bitcointalk.org/index.php?topic=4721744)
-
-## 3rd Party Integrations
-- [BeepXtra Loyalty Systems](https://outlets.beepxtra.com/)
-- [BeepWallet](https://wallet.beepxtra.com/)
-- MerchD AI (No link - proprietory private project)
-
-If you'd like to support the Steroid4.0 development please contact us
-devteam@exevior.com
+_(The PHP node's full source remains on `master` if you need to consult any
+behaviour during the rebuild.)_
