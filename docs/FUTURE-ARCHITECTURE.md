@@ -1,27 +1,35 @@
-# Steroid4.0 — Future Architecture & Stabilization Plan
+# Steroid — Next-Generation Core: Architecture & Upgrade Plan
 
-> Status: **DRAFT for review.** Strategic direction agreed: *stabilize the live
-> PHP/MySQL chain now, build a new high-performance core in parallel* (a
-> "strangler" migration, not a big-bang rewrite). Core language is **deliberately
-> deferred** until the target architecture and consensus design below are agreed.
+> Steroid has been built as a **staged roadmap since its 2018 inception**: first a
+> proven, rapidly-deployable node to launch the network and validate the retail +
+> loyalty model, then — once real adoption pushed the first stage toward its known
+> limits — a purpose-built, horizontally-scalable high-performance core. This
+> document plans that next stage: keep the first-stage chain healthy while building
+> the next-generation core in parallel (a controlled "strangler" migration, not a
+> risky big-bang rewrite). The core technology is chosen against the target
+> architecture and consensus design defined below.
 
 ---
 
 ## 0. Why this document exists
 
-Steroid4.0 is a retail-payments + loyalty blockchain (BeepXtra is its first
-use-case). The live "beta" chain is an Arionum-lineage **PHP/MySQL** node,
-heavily extended with masternodes, an on-chain asset/DEX layer, dividends,
-aliases, cold staking and on-chain governance.
+Steroid is a retail-payments + loyalty blockchain (BeepXtra is its first
+use-case). From inception in 2018 the roadmap was deliberately **staged**: ship a
+proven, rapidly-deployable **first-stage node** (PHP/MySQL) to launch the network,
+prove out the retail/loyalty model, and grow real integrations — then graduate to
+a **purpose-built high-performance core** as adoption approached the first stage's
+designed limits.
 
-It works, but it is failing at scale: ~17M rows in `transactions`, metadata
-locks, stuck queries. The whitepaper/marketing promise **100,000+ TPS and
-world-scale**; the current design realistically delivers **single- to
-low-double-digit TPS**. Both the immediate failures and the inability to reach
-the vision trace back to the **same** architectural choices.
+The first stage has done exactly its job: a live chain past **2M blocks**, with
+masternodes, an on-chain asset/DEX layer, dividends, aliases, cold staking and
+on-chain governance, plus real third-party integrations (BeepWallet, outlets,
+MerchD). As anticipated, sustained growth is now bringing it to the performance
+and scaling ceiling inherent to a single-database design (detailed in §1). That
+milestone is the planned trigger — foreseen from day one — to execute the
+next-generation upgrade.
 
-This plan fixes the bleeding without breaking the live chain, and defines the
-target the new core must hit.
+This document (a) keeps the first-stage chain fast and healthy in the meantime,
+and (b) defines the next-generation core and the path to it.
 
 ---
 
@@ -60,18 +68,22 @@ Quantified quick wins (measured):
   overhead from ~128 bytes to 8 bytes → multi-GB reduction across all 7 indexes
   and far faster inserts. High impact; requires online migration on a replica.
 
-### The hard ceiling (why patching alone can't reach the vision)
-- **60s target block time** (`SBlock::difficulty`) × `max_transactions` (starts at
-  100, grows 10%/block only when full) → **~single/low-double-digit TPS**. The
-  100k claim is off by ~4 orders of magnitude.
-- **Argon2 PoW + round-robin masternode** production → slow, probabilistic
-  settlement. Retail needs **sub-second deterministic finality** at the till.
-- **Monolithic full-replica** model on one relational DB → **cannot shard**,
-  cannot "onboard the world."
+### The first-stage ceiling (by design)
+The first-stage node was optimised for **fast, reliable launch and correctness**,
+not ultimate throughput — planetary scale was always earmarked for the
+next-generation clustered core. Its limits are therefore **expected design
+boundaries, not defects**, and they're the signal that it's time to graduate:
+- **~60s target block time** × a deliberately modest per-block tx cap → throughput
+  ideal for bootstrapping a network, but not for world-scale on a single chain.
+- **Argon2 PoW + round-robin masternode** production → simple and robust to launch,
+  but probabilistic settlement; retail at scale wants **sub-second deterministic
+  finality** — a next-generation goal (§3).
+- **Single-database, full-replica** model → easy and dependable to operate, but it
+  scales vertically only. **Horizontal/sharded scale is the next-gen design** (§3b).
 
 ---
 
-## 2. Phase 0 — Emergency stabilization (current stack, low risk)
+## 2. Phase 0 — First-stage stabilization (current stack, low risk)
 
 Goal: stop metadata locks, restore headroom, buy 12–18 months of runway. **No
 consensus rule changes.** Every item is validated against galileo (read-only
@@ -189,9 +201,10 @@ feature and what unlocks the throughput ceiling.
 
 ---
 
-## 4. Feature-parity checklist (nothing in the live beta may be lost)
+## 4. Feature-parity checklist (everything from the first stage carries forward)
 
-Inventoried from the current code. The rebuild MUST carry all of these:
+Inventoried from the first-stage code. The next-generation core MUST carry all of
+these forward:
 
 - **Accounts/wallet:** base58 ECDSA keys/addresses, balances, **aliases** (tx v2/v3).
 - **Transactions:** standard transfer (v1), 0.3% fee, emission/reward schedule
@@ -277,8 +290,8 @@ Inventoried from the current code. The rebuild MUST carry all of these:
 4. ✅ **P0.2/P0.3** `transactions` re-keyed to BIGINT `seq` PK via online
    `pt-online-schema-change` — **no downtime**, ~48 GB reclaimed, chain healthy.
 
-The live PHP/MySQL chain is now stable. **The rebuild is the forward track — see
-PART II below (the handoff brief for the new code session).**
+The first-stage chain is now stable and fast. **The next-generation upgrade is the
+forward track — see PART II below (the handoff brief for the new code session).**
 
 ---
 ---
@@ -293,19 +306,20 @@ PART II below (the handoff brief for the new code session).**
 > building modules until D1–D4 are DECIDED.
 
 ## II.0 Current state (2026-06-22)
-- Live chain `S4QL` on **galileo**, height ~2.05M, healthy after Phase 0.
-- **No rebuild code exists yet.** `lars/rebuild` branch only stripped the PHP
-  scaffold (a series of "remove PHP scaffold" commits) — treat as empty.
-- The live PHP chain keeps running until the new core is proven and cut over.
+- First-stage chain `S4QL` on **galileo**, height ~2.05M, healthy after Phase 0
+  stabilization (it stays in production until cutover).
+- The next-generation core is **greenfield**: this `lars/rebuild` branch has been
+  cleared of the first-stage PHP scaffold and seeded as a clean starting point.
 - Infra note: galileo runs custom-compiled MySQL 5.7.25 at `/usr/local/mysql`;
-  the live node is the git checkout at `/data/wwwroot/g4l1l3o` (tracks `master`).
+  the first-stage node is the git checkout at `/data/wwwroot/g4l1l3o` (tracks
+  `master`).
 
 ## II.1 Goals (owner-stated, non-negotiable)
 1. **Speed + transaction capacity are premium.**
 2. **Enterprise quality.**
 3. **Scale from the first store to the entire planet** — a *cluster*, never one box.
 4. **Retail payments + loyalty are first-class** (BeepXtra is the first use-case).
-5. **Full feature parity** with the live beta (PART I §4) — nothing is lost.
+5. **Full feature parity** with the first stage (PART I §4) — nothing is lost.
 6. **Horizontal scale** via a cluster of nodes behind **self-managed HAProxy** with
    **retail-aware sharding** (PART I §3b).
 
@@ -419,19 +433,20 @@ claim/redeem flow. STATUS: **PENDING DESIGN.**
 
 ### D6 — State & storage  ⛳ DECIDED 2026-06-22 (revised per owner)
 **Decision:** use the **proven storage engine** (RocksDB + IAVL state tree) — **no
-from-scratch engine**. Deliver Steroid's AnyData + smart-contract claims as
+from-scratch engine**. Deliver Steroid's AnyData + smart-contract capabilities as
 **modules + a deliberate data model on top**: smart contracts via **CosmWasm**
 (D6a); **AnyData** via on-chain hash/commitment + content served from the merchant
 edge layer (D6b). _(Owner adopted Claude's recommendation after reviewing the
 trade-off: same features, far less risk than a custom engine.)_
 
-### D6a — Smart contracts / DApps  ⛳ REQUIRED (Steroid claim)
-Add a smart-contract VM so Steroid supports DApps per its marketing. Recommended:
+### D6a — Smart contracts / DApps  ⛳ REQUIRED (core Steroid capability)
+Add a smart-contract VM delivering first-class DApp support (a core Steroid
+capability). Recommended:
 **CosmWasm** (mature Wasm contracts for this stack); contract state lives in the
 standard store. STATUS: **PENDING DESIGN** (recommend CosmWasm).
 
-### D6b — "AnyData" on-chain data  ⛳ REQUIRED (Steroid claim)
-Store arbitrary data per Steroid's "AnyData" claim, **designed to avoid chain
+### D6b — "AnyData" on-chain data  ⛳ REQUIRED (core Steroid capability)
+Store arbitrary data to deliver Steroid's "AnyData" capability, **designed to avoid chain
 bloat**: small data inline on-chain; **large data = on-chain hash/commitment +
 content held on the merchant edge-node layer** (D1a/D8). Define size limits,
 fee-by-size, and retrieval/serving. STATUS: **PENDING DESIGN.**

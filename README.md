@@ -2,14 +2,16 @@
 
 This branch (`lars/rebuild`) is the home of the **next-generation Steroid core**: a
 horizontally-scalable, **BFT proof-of-stake**, retail-focused **payments + loyalty**
-blockchain that will replace the live PHP/MySQL chain.
+blockchain — the planned successor to the first-stage chain, on the staged roadmap
+set out since Steroid's 2018 inception.
 
-> **Live chain:** the PHP/MySQL node on **`master`** (database `S4QL`, node
-> `galileo`) keeps running until cutover. **Do not break it.**
+> **First-stage chain:** the PHP/MySQL node on **`master`** (database `S4QL`, node
+> `galileo`) remains in production until cutover. **Do not break it.**
 
 ## 📖 Read this first
-**`docs/FUTURE-ARCHITECTURE.md`** — the full handoff brief: diagnosis of the old
-chain, owner goals, the agreed architecture, and the complete **decision log
+**`docs/FUTURE-ARCHITECTURE.md`** — the full handoff brief: where the first stage
+stands and why it's time to graduate, owner goals, the agreed architecture, and the
+complete **decision log
 (D1–D11)** with rationale. It is the source of truth for this rebuild.
 
 ## Agreed design (summary — see the doc for full rationale)
