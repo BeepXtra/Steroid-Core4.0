@@ -547,11 +547,68 @@ the build session, not owner decisions:
 
 ## II.5 First tasks for the new code session
 1. Confirm Go + Cosmos SDK + CometBFT scaffolding on the cleaned `lars/rebuild`.
-2. Build **v1** (D9): balances/transfers + fees, the **rotating-committee + VRF**
-   validator module (D1a), `x/gov`, the **API/wallet compatibility gateway** (D7,
-   use `doc/` apidoc + `sdk/` as the contract), and the **S4QL → genesis migration
-   tool** (D10) with base58 addresses preserved (D3).
+2. Build **v1** (D9): balances/transfers + fees, CometBFT over the **full bonded
+   masternode set with VRF proposer rotation** (revised D1a — see II.6 #3), `x/gov`,
+   the **API/wallet compatibility gateway** (D7, use `doc/` apidoc + `sdk/` as the
+   contract), and the **S4QL → genesis migration tool** (D10) with base58 addresses
+   preserved (D3).
 3. Flesh out the design-detail items above as you reach them.
 4. Then v2 (assets/DEX/dividends, CosmWasm, AnyData, proof-of-usage) and v3
-   (regional shards + self-managing edge).
+   (load-aware sharding + self-managing edge — see II.6 #1/#2).
+
+## II.6 Review concerns & resolutions (owner review, 2026-06-23)
+These refine/supersede earlier entries; the build session treats II.6 as binding.
+
+**#1 — Edge/HAProxy must NOT be driven by consensus nodes writing configs.**
+Risk (valid): split-brain config drift, blast radius if a node is compromised,
+reload churn under churn. **Resolution (revises §3b):**
+- Separate **control plane** from consensus. Nodes never write proxy config.
+- Membership = the chain's **signed, quorum-agreed validator set** (single source
+  of truth) — no per-node pushes.
+- Edge uses **dynamic upstreams** (HAProxy **Data Plane API** or Envoy **xDS**):
+  add/drain servers at runtime, **no rewrite-and-reload**.
+- Edges are **read-only** consumers of signed membership → compromised node can't
+  poison routing. Updates **debounced/epoch-batched**.
+
+**#2 — Sharding: no premature/geo sharding; no IBC at the till.**
+Risk (valid): geo-shards hotspot on flash sales; cross-shard IBC is too slow for
+checkout. **Resolution (revises D2/§3b):**
+- v1/v2 = **one high-throughput chain** (parallel/optimistic execution, ABCI 2.0
+  mempool lanes, edge read-replicas). Removes hotspots + cross-shard latency for
+  the realistic horizon.
+- Shard **only when a single chain is truly saturated**, by **account-space with
+  load-aware rebalancing** (hot merchants split/migrate) — **not** geography.
+- **Checkout never waits on cross-shard finality:** local = instant single-shard;
+  cross-region = **instant merchant acceptance via escrow/receipt + async
+  settlement** (or a fast coordinator path), never vanilla multi-block IBC.
+
+**#3 — VRF committee liveness.**
+Risk (valid): a small VRF committee can stall if it can't reach 2/3.
+**Resolution (revises D1a):**
+- **v1: CometBFT over the FULL bonded masternode set**; VRF used only for
+  **proposer/leader rotation** → keeps the "rotating source of truth" without a
+  fragile small voting set.
+- If consensus is later sharded: committees **sized in the dozens+**, **per-epoch**
+  rotation (not per-block), with **overlap + automatic fallback to the full set**
+  if 2/3 isn't reached within N rounds. (5–6 is rejected as unsafe/non-live.)
+
+**#4 — AnyData Data Availability + slashing (was missing).**
+Risk (valid): hash-on-chain + single edge node = data lost if that node dies.
+**Resolution (revises D6b):**
+- Blobs **erasure-coded + replicated (k-of-n survive loss)**, not single-node.
+- **Random proof-of-retrievability challenges → slash/withhold rewards** for nodes
+  that can't serve (the missing economic vector).
+- Or integrate an external **DA/permanence layer** (Celestia-style DA sampling, or
+  IPFS+Filecoin/Arweave) for blobs needing permanence. Small/critical data inline.
+
+**#5 — Proof-of-usage collusion / wash-trading.**
+Risk (valid): merchant+user loop txs paying 0.3% fee to farm emission.
+**Resolution (refines D5a) — principle: farming must cost more than it pays:**
+- Reward **counterparty diversity + counterparty diversity, not raw volume**;
+  **sharp diminishing returns** on repeated same-pair loops (loops → ~0).
+- Merchants **staked + staked**; fraudulent attestation → **slash/delist**.
+- Fund from a **bounded, merchant-funded loyalty pool**, not open-ended emission.
+- Off-chain **graph/anomaly detection** (loop/Sybil-ring) → on-chain delisting.
+- Accepted caveat: not fully trustless — a staked-merchant + bounded-pool +
+  diversity + slashing model, kept modest so it isn't worth attacking.
 
