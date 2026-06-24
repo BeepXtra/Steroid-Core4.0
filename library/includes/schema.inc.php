@@ -326,6 +326,29 @@ if ($dbversion == 13) {
     $dbversion++;
 }
 
+if ($dbversion == 14) {
+    // Phase 0 stabilization: trim per-insert write amplification on the
+    // transactions table. The `version` standalone index is fully covered by
+    // `idx_version_height` (version,height), and the `message` FULLTEXT index is
+    // unused (no MATCH...AGAINST anywhere in the codebase). Dropping both takes
+    // every insert from maintaining 8 B-trees to 6, shortening how long the
+    // block-write lock is held. Idempotent: only drop if present, since some
+    // nodes/operators may have applied these manually.
+    $idx_exists = function ($name) use ($db) {
+        return $db->single(
+            "SELECT COUNT(1) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='transactions' AND index_name=:n",
+            [":n" => $name]
+        ) > 0;
+    };
+    if ($idx_exists('message')) {
+        $db->run("ALTER TABLE `transactions` DROP INDEX `message`");
+    }
+    if ($idx_exists('version')) {
+        $db->run("ALTER TABLE `transactions` DROP INDEX `version`");
+    }
+    $dbversion++;
+}
+
 // update the db version to the latest one
 if ($dbversion != $_config->dbversion) {
     $db->run("UPDATE config SET val=:val WHERE cfg='dbversion'", [":val" => $dbversion]);
