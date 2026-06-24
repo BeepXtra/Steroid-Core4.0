@@ -11,6 +11,8 @@
 
 ---
 
+# PART I — Current stack & Phase 0 stabilization
+
 ## 0. Why this document exists
 
 Steroid is a retail-payments + loyalty blockchain (BeepXtra is its first
@@ -62,24 +64,27 @@ Every insert mutates 8 B-trees keyed on a 128-byte random value → page splits 
 long-held global lock. **Index bloat is the dominant cost, and it is structural.**
 
 Quantified quick wins (measured):
-- `version` index is **fully covered** by `idx_version_height` → drop now (safe).
+- `version` index is **fully covered** by `idx_version_height` → drop (safe).
 - `FULLTEXT(message)` is large and likely low-value → confirm usage, then drop.
 - Re-keying to a `BIGINT` surrogate PK shrinks the per-row secondary-index
   overhead from ~128 bytes to 8 bytes → multi-GB reduction across all 7 indexes
-  and far faster inserts. High impact; requires online migration on a replica.
+  and far faster inserts. High impact; online migration.
+
+(Phase 0 status of these is recorded in §2d.)
 
 ### The first-stage ceiling (by design)
 The first-stage node was optimised for **fast, reliable launch and correctness**,
 not ultimate throughput — planetary scale was always earmarked for the
-next-generation clustered core. Its limits are therefore **expected design
-boundaries, not defects**, and they're the signal that it's time to graduate:
+next-generation core. Its limits are therefore **expected design boundaries, not
+defects**, and they're the signal that it's time to graduate:
 - **~60s target block time** × a deliberately modest per-block tx cap → throughput
-  ideal for bootstrapping a network, but not for world-scale on a single chain.
+  ideal for bootstrapping a network, but not for world-scale.
 - **Argon2 PoW + round-robin masternode** production → simple and robust to launch,
   but probabilistic settlement; retail at scale wants **sub-second deterministic
-  finality** — a next-generation goal (§3).
+  finality** — a next-generation goal (PART II).
 - **Single-database, full-replica** model → easy and dependable to operate, but it
-  scales vertically only. **Horizontal/sharded scale is the next-gen design** (§3b).
+  scales vertically only. **High-throughput parallel execution is the next-gen
+  design** (PART II).
 
 ---
 
@@ -90,22 +95,29 @@ consensus rule changes.** Every item is validated against galileo (read-only
 diagnostics first) before deployment, because lock-semantics changes on a live
 chain can fork/corrupt it if done blind.
 
-**P0.1 — Replace global `LOCK TABLES` with InnoDB row-level transactions.**
-The block-add path already runs inside `beginTransaction()`/`commit()`. The
-explicit `LOCK TABLES` is redundant *if* writes are correctly ordered and the
-mempool/state updates use row locks (`SELECT … FOR UPDATE`) on the specific
-accounts touched. This is the single biggest win and the most consensus-sensitive
-change — sequence it first, test on a forked copy of galileo state, deploy to one
-node, observe, then roll out.
+**P0.1 — Remove the global `LOCK TABLES` on the block path.**
+The block-add path already runs inside `beginTransaction()`/`commit()`, so the
+explicit `LOCK TABLES` is redundant *if* writes are correctly ordered and state
+updates use row locks (`SELECT … FOR UPDATE`) on the specific accounts touched.
+This is the single biggest win and the most consensus-sensitive change.
+**STATUS: shipped to master (#32) as the conservative first step — a single
+serializing *advisory lock* (`GET_LOCK`) replacing `LOCK TABLES`**, which removes
+the metadata-lock stalls without yet relying on per-account row locking. Moving to
+true row-level (`FOR UPDATE`) concurrency remains a follow-up.
 
 **P0.2 — Re-key `transactions`.** Add surrogate `BIGINT UNSIGNED AUTO_INCREMENT`
 PK; keep the base58 `id` as a `UNIQUE` (or covered) key. Converts random-insert
 hotspots into sequential appends; shrinks every secondary index.
+**STATUS: implemented on the Phase-0 branch (surrogate `seq` PK + online-migration
+runbook); not yet merged to master; live DB state not re-verified here.**
 
 **P0.3 — Trim & partition.** Drop `FULLTEXT(message)` and any redundant indexes
 (audit with `pt-index-usage`); **partition `transactions` by `height` range**;
 move blocks older than the cold horizon to an `transactions_archive` table /
 replica. Reassess FK CASCADE (consider app-level integrity instead).
+**STATUS: index drops implemented on the Phase-0 branch (reported applied to live
+S4QL per change log; not merged to master, live state unverified here);
+partitioning + archival + FK-CASCADE rework still PENDING.**
 
 **P0.4 — De-hot-path aggregations.** Precompute vote tallies & dividend
 candidates into small summary tables updated incrementally; the block path reads
@@ -117,123 +129,7 @@ replica so block production never competes with read traffic.
 **Exit criteria:** no metadata-lock stalls under production load; p99 block-add
 time bounded; API read latency decoupled from block production.
 
----
-
-## 3. Phase 1 — New core engine (built in parallel)
-
-Design principles (language-agnostic by decision):
-
-- **Storage:** embedded **LSM / key-value store** (e.g. RocksDB-class), *not* a
-  relational DB. State as an authenticated key-value tree (Merkle/IAVL-style) for
-  light-client proofs.
-- **Consensus:** **BFT/PoS-style deterministic finality** (fast, final,
-  payment-appropriate) replacing Argon2 PoW. Masternodes become the validator
-  set — preserves the existing economic/governance model.
-- **Execution:** account/balance state machine with the existing transaction
-  versions as native operations (see §4). Deterministic, parallelizable where
-  the access sets are disjoint.
-- **Networking:** structured p2p (libp2p-class) with gossip + fast block sync /
-  state snapshots.
-- **Compatibility (non-negotiable):** **same address format, same tx semantics &
-  signing scheme, same 0.3% fee model, same asset/loyalty/governance features,
-  and a compatible REST API surface** so BeepWallet, outlets, MerchD and the SDK
-  keep working with minimal changes.
-- **Scale path:** **horizontal by design** — throughput grows by adding nodes to
-  a cluster, never by making one node bigger. See §3b.
-
-**Language decision (deferred):** to be made *after* this architecture is signed
-off. Candidates on the table: Rust (max performance/safety), Go (gentler curve,
-proven in Cosmos/geth), or a PHP-fronted native hot-path module (least
-disruption, lower ceiling). Decision criteria: target TPS/finality SLA, team
-ramp, hiring, ecosystem (consensus & p2p libs).
-
----
-
-## 3b. Horizontal scale — masternode cluster + self-managed HAProxy
-
-**Decision:** the 100k-TPS / world-scale target is met by a **cluster**, not a
-single node. The new core is horizontally scalable from day one, and the
-Steroid4.0 codebase itself manages the cluster topology (HAProxy edges, node
-discovery) — no external orchestration required.
-
-**Tiers:**
-
-1. **Ingress / API edge (stateless, behind HAProxy).** Many edge nodes accept
-   transactions and serve reads. They verify signatures, do cheap validation, and
-   route. HAProxy config is **generated and reloaded by the Steroid4.0 codebase**
-   as nodes join/leave (service discovery + health checks). HAProxy round-robins
-   *reads and tx ingress* freely — these are stateless.
-
-2. **Consensus / validator tier (masternodes).** BFT-style finality among
-   masternodes. A single BFT group has a practical ceiling (~few thousand TPS) due
-   to all-to-all voting messaging — so one group alone is *not* enough.
-
-3. **Sharded consensus for linear scale.** Run **multiple consensus groups
-   (shards)**, each owning a slice of state, coordinated by a lightweight beacon
-   layer. Throughput then scales ~linearly with shard count:
-   *~3–5k TPS/shard × ~20–30 shards ≈ 100k TPS*, and you add shards to grow.
-
-**Retail-aware sharding (the key fit):** shard by **merchant / store / region**.
-Retail traffic is overwhelmingly *local* (customer ↔ store), so the vast majority
-of transactions are **single-shard and fast**. Only cross-region transfers are
-cross-shard. This maps the BeepXtra use-case onto the architecture almost
-perfectly and keeps the expensive cross-shard path rare.
-
-**Important design nuances (so the cluster is correct, not just fast):**
-
-- **Writes are shard-routed, not load-balanced.** HAProxy LB is for the stateless
-  edge (ingress + reads). A *write* must reach the validators that own that
-  account's shard — the edge routes by shard key (address/merchant), it does not
-  round-robin writes across consensus groups.
-- **Cross-shard atomicity:** inter-shard transfers need a 2-phase / lock-then-
-  commit protocol (or a beacon-ordered receipt model) to preserve no-double-spend
-  across shards. This is the main complexity to design carefully.
-- **Global invariants:** total supply, emission, masternode registry and
-  governance are global state — kept on a coordination shard / beacon and cached
-  read-only at the edges.
-- **Read replicas at the edge** absorb explorer/wallet/API load so reads never
-  touch the consensus hot path.
-
-**Migration implication:** even before sharding, the *same repo running on many
-masternodes behind HAProxy* (today's model) already gives read scale + ingress
-scale + redundancy. Sharded *write* consensus is the Phase-1 core's headline
-feature and what unlocks the throughput ceiling.
-
----
-
-## 4. Feature-parity checklist (everything from the first stage carries forward)
-
-Inventoried from the first-stage code. The next-generation core MUST carry all of
-these forward:
-
-- **Accounts/wallet:** base58 ECDSA keys/addresses, balances, **aliases** (tx v2/v3).
-- **Transactions:** standard transfer (v1), 0.3% fee, emission/reward schedule
-  (`SBlock::reward`), mempool with fee-priority ordering.
-- **Masternodes:** 250k-BPC stake (v100–v104), pause/resume, IP update, blacklist
-  logic, round-robin selection, **cold staking** rewards.
-- **Governance:** masternode voting (v105 vote-key, v106 MN-blacklist votes, v107
-  blockchain-parameter votes), `votes` table params (emission30,
-  masternodereward50, endless10reward, coldstacking).
-- **Assets / tokens (v50–v59):** creation, transfer, **on-chain DEX** (bid/ask
-  matching), manual + **auto-dividends**, dividend-only assets, inflatable supply,
-  fixed-price assets, tradable flag.
-- **Platform:** REST API + SDK (`sdk/php`), apidoc (`doc/`), block explorer,
-  peer/propagation protocol, sanity/sync, checkpoints, retail/loyalty integration
-  hooks (BeepXtra outlets, BeepWallet, MerchD).
-
----
-
-## 5. Phase 2 — Migration & cutover
-
-1. Freeze a height; export an authenticated **state snapshot** (accounts, assets,
-   balances, masternodes, governance state) → new-core **genesis checkpoint**.
-2. Run new core in **shadow** alongside the live chain; replay/compare.
-3. Cut over validators; keep a read-only bridge of historical data for the
-   explorer.
-
----
-
-## 5b. Phase 0 progress log
+### 2b. Phase 0 progress log (history)
 
 - **2026-06-22 — P0.3 (partial), DONE on live S4QL, zero disruption.** Dropped the
   unused `FULLTEXT(message)` index (verified no `MATCH…AGAINST` anywhere in code)
@@ -253,16 +149,6 @@ these forward:
   `START TRANSACTION`, so writer serialization is stronger than the old table
   lock. Per-MySQL-server scope = correct per-node behavior in a cluster. Lint
   clean; every exit path releases the lock; no re-entrancy.
-  **Rehearsal/deploy checklist (operator):**
-  1. Pull branch on a *non-validating* spare node or a clone of galileo first.
-  2. `php -l` the two files (already verified) and run a short sync to apply a few
-     hundred blocks; confirm height advances and balances stay consistent.
-  3. Watch `SHOW PROCESSLIST` + `SELECT IS_USED_LOCK('steroid_block_apply')` —
-     confirm reads no longer queue behind block-apply.
-  4. Deploy to galileo; observe one masternode through several won blocks before
-     rolling cluster-wide.
-- **Next:** P0.2/P0.3 surrogate BIGINT PK + partition-by-height + cold archival
-  (rehearsed on a staging clone) → P0.5 read replica.
 - **2026-06-22 — P0.2/P0.3 AUTHORED.** Re-key `transactions` to an 8-byte
   `seq` BIGINT auto-increment PK, keeping `id` as `UNIQUE` — shrinks every
   secondary index (the 23 GB bloat) and makes inserts sequential. No app code
@@ -272,346 +158,233 @@ these forward:
   `pt-online-schema-change` = no downtime, or a maintenance window). Cold-archival
   follow-on included. Operator runs it (NOT an auto inline migration — too heavy).
 
-## 5c. Working model (agreed)
+### 2c. Working model
 
 - **LARS** (beta): used for **read-only** info-gathering on live infra (server +
   DB inspection) and for the **new-build sandbox** — **never** to mutate live
   production files. All live DDL/index work already applied manually is now
   back-filled into versioned migrations.
-- **Phase 0 fixes:** authored by Claude and delivered via **GitHub** (code +
-  versioned SQL migrations). **Operator deploys to the galileo masternode.**
+- **Phase 0 fixes:** delivered via **GitHub** (code + versioned SQL migrations).
+  **Operator deploys to the galileo masternode.**
 - **Rebuild:** may be test-driven on LARS (new build only).
 
-## 6. Phase 0 status — COMPLETE (2026-06-22)
+### 2d. Phase 0 status
 
 1. ✅ Diagnosis on galileo (numbers in §1).
 2. ✅ Index trim shipped + formalized as `dbversion 14`.
-3. ✅ **P0.1** advisory-lock de-freeze — deployed to galileo, **PR #32 merged to master**.
-4. ✅ **P0.2/P0.3** `transactions` re-keyed to BIGINT `seq` PK via online
-   `pt-online-schema-change` — **no downtime**, ~48 GB reclaimed, chain healthy.
-
-The first-stage chain is now stable and fast. **The next-generation upgrade is the
-forward track — see PART II below (the handoff brief for the new code session).**
+3. ✅ **P0.1** advisory-lock de-freeze — **PR #32 merged to master**.
+4. ◻ **P0.2/P0.3** `transactions` re-key to BIGINT `seq` PK — implemented on the
+   Phase-0 branch (online `pt-online-schema-change` runbook); not yet merged to
+   master; live state not re-verified here.
+5. ◻ **P0.3** partition-by-height + cold archival + FK-CASCADE rework — PENDING.
+6. ◻ **P0.4** de-hot-path aggregations, **P0.5** read replica — PENDING.
 
 ---
 ---
 
-# PART II — Rebuild Proposal & Decision Sequence (HANDOFF BRIEF)
+# PART II — Next-generation core (decided architecture)
 
-> **Audience: the new code session that will build the next-generation Steroid
-> core.** LARS could not execute the build, so a fresh code session takes over.
-> Read PART I first (diagnosis + the now-complete Phase 0 stabilization). This part
-> is the authoritative brief. Each decision is **PENDING** until the owner
-> confirms; it then becomes **DECIDED** with date + rationale. Do not start
-> building modules until D1–D4 are DECIDED.
+> Authoritative spec for building the next-generation Steroid core on the
+> `lars/rebuild` branch. The first-stage chain stays in production until cutover.
+> Infra note: galileo runs custom-compiled MySQL 5.7.25 at `/usr/local/mysql`; the
+> first-stage node is the git checkout at `/data/wwwroot/g4l1l3o` (tracks `master`).
 
-## II.0 Current state (2026-06-22)
-- First-stage chain `S4QL` on **galileo**, height ~2.05M, healthy after Phase 0
-  stabilization (it stays in production until cutover).
-- The next-generation core is **greenfield**: this `lars/rebuild` branch has been
-  cleared of the first-stage PHP scaffold and seeded as a clean starting point.
-- Infra note: galileo runs custom-compiled MySQL 5.7.25 at `/usr/local/mysql`;
-  the first-stage node is the git checkout at `/data/wwwroot/g4l1l3o` (tracks
-  `master`).
+## 3. Goals (non-negotiable)
 
-## II.1 Goals (owner-stated, non-negotiable)
 1. **Speed + transaction capacity are premium.**
 2. **Enterprise quality.**
-3. **Scale from the first store to the entire planet** — a *cluster*, never one box.
-4. **Retail payments + loyalty are first-class** (BeepXtra is the first use-case).
-5. **Full feature parity** with the first stage (PART I §4) — nothing is lost.
-6. **Horizontal scale** via a cluster of nodes behind **self-managed HAProxy** with
-   **retail-aware sharding** (PART I §3b).
+3. **Scale from the first store to the entire planet.**
+4. **Retail payments are first-class.**
+5. **Full feature parity** with the first stage (§5) — nothing is lost.
+6. **Scale on-chain first:** a single high-throughput chain (parallel execution +
+   instant finality); shard only as a last resort (§6, D2).
 
-## II.2 Recommended architecture (the proposal)
-A **BFT proof-of-stake** chain where today's **masternodes become the validator
-set**, giving **deterministic sub-second-to-few-second finality** (what retail
-needs — not probabilistic PoW). Horizontal scale via **multiple chains/zones
-sharded by region/merchant**, interconnected for cross-shard settlement, with a
-stateless HAProxy edge for reads/ingress and shard-routed writes.
+## 4. Architecture
 
-Primary recommendation for the stack: **Go + Cosmos SDK + CometBFT**, because it
-delivers the above with mature, audited building blocks and the gentlest ramp for
-a PHP team:
+A **BFT proof-of-stake** chain where today's **masternodes are the validator set**,
+giving **instant (sub-second) deterministic finality** — what retail needs, not
+probabilistic PoW. Throughput comes from **parallel/optimistic execution on a
+single high-throughput chain**, not from geographic sharding.
+
+**Stack: Go + Cosmos SDK + CometBFT.**
 - **CometBFT (Tendermint) BFT-PoS** → instant finality; validators = masternodes.
-- **Cosmos SDK modules** give us, for free: a balances/transfer module, `x/staking`
-  (validator bonding ↔ the 250k masternode stake), `x/gov` (↔ on-chain votes),
-  `x/authz`, `x/feegrant`. We build custom modules for the rest (assets/DEX/
-  dividends, loyalty, alias).
-- **Sharding = Cosmos "zones" + IBC**: one zone per region; add zones to scale
-  throughput ~linearly toward the 100k-TPS goal. Cross-shard = IBC transfers.
-- Mature security, tooling, and a large hiring pool.
+- **Cosmos SDK modules** reused: a balances/transfer module, `x/staking` (validator
+  bonding ↔ the 250k masternode stake), `x/gov` (↔ on-chain votes), `x/authz`,
+  `x/feegrant`. Custom modules for the rest (assets, alias).
+- **Storage:** RocksDB + IAVL authenticated state tree → light-client proofs.
 
-Trade-off to settle (see D3): Cosmos defaults to bech32 addresses + protobuf tx;
-the live chain uses **base58 addresses + secp256k1 ECDSA**. The *key crypto
-matches* (secp256k1), but address encoding/tx format differ → either preserve
-base58 via a custom address codec (keeps existing addresses/wallets valid) or
-adopt native formats and update wallets.
+## 5. Feature parity — nothing is lost
 
-Alternative stacks considered (decide in D1): **Rust + Substrate** (max
-performance, parachain sharding, steeper curve); **fully custom Go/Rust** (max
-control, max effort/risk — not recommended).
+Inventoried from the first-stage code; the next-generation core MUST carry all of
+these forward:
 
-## II.3 Decision sequence (work top-to-bottom; D1–D4 gate everything)
+- **Accounts/wallet:** base58 ECDSA keys/addresses, balances, **aliases** (tx v2/v3).
+- **Transactions:** standard transfer (v1), 0.3% fee, emission/reward schedule
+  (`SBlock::reward`), mempool with fee-priority ordering.
+- **Masternodes:** 250k-BPC stake (v100–v104), pause/resume, IP update, blacklist
+  logic, selection, **cold staking** rewards.
+- **Governance:** masternode voting (v105 vote-key, v106 MN-blacklist votes, v107
+  blockchain-parameter votes), `votes` table params (emission30,
+  masternodereward50, endless10reward, coldstacking).
+- **Assets / tokens (v50–v59):** creation, transfer, and **optional declarable
+  params** (manual/auto-dividends, dividend-only, inflatable supply, fixed-price).
+  See D5.
+- **Platform:** REST API + SDK (`sdk/php`), apidoc (`doc/`), block explorer,
+  peer/propagation protocol, sanity/sync, checkpoints, and a REST compatibility
+  surface for existing external clients (D7).
 
-> Format per decision: **context → options → recommendation → STATUS**. The owner
-> and Claude fill STATUS as we go; the new session treats DECIDED rows as binding.
+## 6. Decisions (final)
 
-### D1 — Core stack & framework  ⛳ keystone
-Options: **(A) Go + Cosmos SDK + CometBFT** · (B) Rust + Substrate · (C) fully
-custom (Go or Rust) · (D) other/discuss.
-**Recommendation: A.** STATUS: **DECIDED (provisional) — Go + Cosmos SDK +
-CometBFT.** Basis of all consensus/feature decisions below; owner may still veto.
+### D1 — Core stack & framework
+**Go + Cosmos SDK + CometBFT.** Basis of all consensus/feature decisions below.
 
-### D1a — Consensus & participation model  ⛳ (DECIDED 2026-06-22)
-**Consensus:** DPoS-style **rotating committee** — a small, tunable group (≈5–6)
-of **staked masternodes** randomly selected to produce & finalize blocks with
-**instant BFT finality**; the committee **re-rolls every epoch** (every N blocks,
-N tunable — per-block rotation rejected as fragile). Selection randomness comes
-from an unpredictable **VRF beacon**. Safe because validators are known, bonded
-(250k) masternodes. **No PoW in the consensus path** (PoW is slow and extra
-hashrate does not add throughput — it would undermine Goal #1). Open sub-params:
-committee size, epoch length, exact VRF construction.
+### D1a — Consensus & participation model
+**Consensus:** **CometBFT BFT-PoS over the FULL bonded masternode set** → instant
+finality. **No PoW.** A **VRF beacon** drives **proposer/leader rotation**;
+everyday user transactions feed entropy into the beacon.
 
-**"Participate by using" / scale-by-usage model (LOCKED — A+C+D+F):**
-- **(F) Randomness from usage:** everyday user transactions feed entropy into the
-  VRF beacon — users strengthen security simply by transacting.
-- **(A) Merchant edge nodes:** each merchant's Steroid instance also runs a light
-  edge/relay node behind the HAProxy mesh → every onboarded store adds ingress/
-  read capacity. The real "scales with adoption" engine.
-- **(C) Proof-of-usage loyalty:** users earn rewards for genuine activity (the
-  BeepXtra loyalty engine) → adoption → fees → more masternodes/shards. Requires
-  anti-Sybil (merchant stake + slashing, rate limits, counterparty diversity).
-- **(D) Phone light clients:** consumer devices verify their own balances/txs
-  trustlessly.
-- **EXCLUDED:** consumer-phone compute, storage/CDN, and hashrate (unreliable,
-  low payoff, needless complexity).
-STATUS: **DECIDED.**
+**"Participate by using" model:**
+- **Merchant edge nodes:** each merchant's Steroid instance also runs a light
+  edge/relay node → every store adds ingress/read capacity.
+- **Proof-of-usage rewards** (→ D5a).
+- **Phone light clients:** consumer devices verify their own balances/txs trustlessly.
+- **Randomness from usage:** user transactions feed the VRF beacon.
+- **Excluded:** consumer-phone compute, storage/CDN, hashrate.
 
-### D2 — Sharding strategy & timing
-Options: (A) **single zone in v1, add region zones + IBC later** · (B) multi-shard
-from day 1 · (C) custom shard layer.
-**Recommendation: A** (ship one solid chain first; scale out once parity is proven).
-STATUS: **DECIDED 2026-06-22 — (A)** single chain in v1; add region zones +
-cross-shard (IBC) later as adoption demands.
+### D2 — Throughput & scaling strategy
+**One high-throughput chain (v1/v2).**
+- **Parallel/optimistic execution** (transactions touching disjoint accounts run
+  concurrently), **instant BFT finality**, ABCI 2.0 mempool lanes, edge
+  read-replicas. One global state.
+- **Native `total` / `available` / `locked` balance accounting:** on payment,
+  validate `available`, atomically move the amount to `locked` until finality, then
+  settle and update both parties.
+
+**Sharding — last resort only**, when a single chain is truly saturated, and then
+by **account-space with load-aware rebalancing** (hot merchants split/migrate) —
+**not geography, not IBC at the till**. Checkout never waits on cross-shard
+finality: local = instant single-shard; cross-region = **instant merchant
+acceptance via escrow/receipt + async settlement**.
 
 ### D3 — Address / key / wallet compatibility
-Options: (A) **preserve base58 addresses via a custom address codec** (secp256k1
-kept) so existing addresses, balances, and BeepWallet keep working · (B) adopt
-native bech32 + migrate wallets · (C) discuss.
-**Recommendation: A** (user-facing continuity; clean state migration). STATUS:
-**DECIDED 2026-06-22 — (A)** preserve base58 addresses via a custom address codec
-(secp256k1 keys unchanged). Existing addresses/balances/BeepWallet keep working;
-enables clean state migration from S4QL.
+**Preserve base58 addresses via a custom address codec** (secp256k1 keys
+unchanged). Existing addresses, balances and wallets keep working; enables a clean
+state migration from S4QL.
 
-### D4 — Economics: PoW → PoS mapping
-Context: live chain has PoW emission, 0.3% fee, 250k masternode stake, masternode
-+ cold-staking rewards, on-chain governance votes (PART I §4).
-Options: (A) **map onto PoS**: masternodes = bonded validators (250k = min self-
-bond), emission→staking rewards, keep 0.3% fee + governance via `x/gov`, cold
-staking → delegation · (B) redesign tokenomics · (C) discuss.
-**Recommendation: A.** STATUS: **DECIDED (in principle)** — PoS; masternodes =
-bonded validators (250k = min self-bond); cold staking → delegation; emission →
-staking/loyalty rewards; keep the 0.3% fee; governance via `x/gov` + existing
-vote semantics. **No PoW.** Exact numbers to finalize.
+### D4 — Economics: PoS
+Masternodes = **bonded validators** (250k = min self-bond); **cold staking →
+delegation**; **emission → staking rewards**; keep the **0.3% fee**;
+governance via `x/gov` + existing vote semantics. **No PoW.** Exact numbers
+(emission curve, reward splits, min bond) finalized at build (§8).
 
 ### D5 — Feature-parity modules
-STATUS: **DECIDED 2026-06-22.** Reuse built-in balances/staking/governance modules. Build custom
-modules: **assets** (create/transfer/on-chain DEX/dividends/auto-dividends/
-inflatable/fixed-price) and **alias**. **Loyalty stays OFF-chain** in the BeepXtra
-app — the chain exposes only payments + token primitives (no on-chain loyalty
-module). Proof-of-usage rewards are handled separately → D5a.
+Reuse built-in balances/staking/governance modules. Build custom modules:
+- **assets — permissionless token launch.** Any BPC wallet can create a token: pay
+  a **creation fee**, declare **parameters + supply**, and fund a **per-asset fee
+  pool** that covers the fees for transacting in that token (so holders don't need
+  BPC to move it). Optional declarable params: manual/auto-dividends, dividend-only,
+  inflatable supply, fixed-price.
+- **alias** — human-readable names.
 
-### D5a — Proof-of-usage rewards (on-chain)  ⛳ (to design)
-A native on-chain mechanism that rewards users for **genuine** activity — the
-scale-by-usage engine from D1a, and explicitly wanted by the owner. Distinct from
-BeepXtra's off-chain loyalty program. To design: definition of "genuine usage"
-(net economic activity, not self-transfers/wash loops); anti-Sybil via purely
-on-chain economics (merchant stake + slashing, rate limits, counterparty
-diversity, diminishing returns on repeated pairs); reward funding source
-(emission allocation and/or fee redistribution) and its emission/inflation impact;
-claim/redeem flow. STATUS: **PENDING DESIGN.**
+The chain exposes only payments + token primitives. Proof-of-usage rewards → D5a.
 
-### D6 — State & storage  ⛳ DECIDED 2026-06-22 (revised per owner)
-**Decision:** use the **proven storage engine** (RocksDB + IAVL state tree) — **no
-from-scratch engine**. Deliver Steroid's AnyData + smart-contract capabilities as
-**modules + a deliberate data model on top**: smart contracts via **CosmWasm**
-(D6a); **AnyData** via on-chain hash/commitment + content served from the merchant
-edge layer (D6b). _(Owner adopted Claude's recommendation after reviewing the
-trade-off: same features, far less risk than a custom engine.)_
+### D5a — Proof-of-usage rewards (on-chain)
+A native on-chain mechanism that rewards users for **genuine** activity.
 
-### D6a — Smart contracts / DApps  ⛳ REQUIRED (core Steroid capability)
-Add a smart-contract VM delivering first-class DApp support (a core Steroid
-capability). Recommended:
-**CosmWasm** (mature Wasm contracts for this stack); contract state lives in the
-standard store. STATUS: **PENDING DESIGN** (recommend CosmWasm).
+**Principle: unprofitable to farm by construction; every check is O(1) (single
+state lookup); no identity, no Sybil-ring detection.**
 
-### D6b — "AnyData" on-chain data  ⛳ REQUIRED (core Steroid capability)
-Store arbitrary data to deliver Steroid's "AnyData" capability, **designed to avoid chain
-bloat**: small data inline on-chain; **large data = on-chain hash/commitment +
-content held on the merchant edge-node layer** (D1a/D8). Define size limits,
-fee-by-size, and retrieval/serving. STATUS: **PENDING DESIGN.**
+- **Merchants fund rewards, not the network.** A merchant locks two on-chain pots:
+  a slashable **stake/bond**, and a **bounded reward pool** that is the *only*
+  source of their customers' rewards. No emission/inflation funds this.
+- **Reward = `r` × fee paid, `r` < 1, always** → any self-dealing loop is
+  net-negative per iteration.
+- **Same-pair diminishing returns:** a per-`(payer, payee)` counter decays `r`
+  toward ~0 for repeated loops over the same pair.
+- **Counterparty diversity** weighting via a bounded per-account decaying tally.
+- **Misbehaviour → slash + automatic on-chain delisting.**
+
+### D6 — State & storage
+Use the **proven storage engine** (RocksDB + IAVL state tree) — no from-scratch
+engine. Deliver Steroid's AnyData + smart-contract capabilities as **modules + a
+deliberate data model on top** (D6a/D6b).
+
+### D6a — Smart contracts / DApps
+First-class DApp support via **CosmWasm** (mature Wasm contracts for this stack);
+contract state lives in the standard store. Gas/integration model finalized at build (§8).
+
+### D6b — "AnyData" on-chain data
+**Designed to avoid chain bloat:** small data inline on-chain; **large data =
+on-chain hash/commitment + content held on the merchant edge-node layer** (D1a/D8).
+For durability, blobs are **erasure-coded + replicated (k-of-n survive loss)** with
+**random proof-of-retrievability challenges → slash/withhold rewards** for nodes
+that can't serve; or integrate an external **DA/permanence layer** (Celestia-style
+DA sampling, or IPFS+Filecoin/Arweave) for blobs needing permanence. Size limits +
+fee-by-size finalized at build (§8).
 
 ### D7 — API & SDK compatibility
-Options: (A) **REST gateway replicating the current endpoints** so BeepWallet /
-outlets / MerchD / the PHP SDK keep working · (B) native gRPC/Cosmos API only +
-update clients.
-**Recommendation: A.** STATUS: **DECIDED 2026-06-22 — (A)** ship a compatibility
-gateway mirroring today's REST endpoints (BeepWallet / outlets / MerchD / PHP SDK
-keep working) and expose the new native API alongside for new development.
+Ship a **generic REST compatibility gateway** mirroring today's endpoints so
+existing external clients survive the migration; expose the new native API
+alongside for new development. (`doc/` apidoc + `sdk/` are the API-parity contract.)
 
-### D8 — Edge / self-managed HAProxy
-Design: nodes self-register (on-chain or registry); a controller (owned by the
-Steroid codebase) generates + reloads HAProxy config on join/leave; HAProxy
-round-robins reads + tx ingress; writes are shard-routed by address/region.
-STATUS: **DECIDED 2026-06-22 — self-managing edge.** Nodes/stores self-register; a
-Steroid-owned controller auto-generates + reloads HAProxy config on join/leave;
-reads + tx ingress load-balanced; payment writes shard-routed by region. Grows
-and self-heals without manual config.
+### D8 — Edge / self-managed routing
+**Control plane is separate from consensus — nodes never write proxy config.**
+Membership = the chain's **signed, quorum-agreed validator set** (single source of
+truth). The edge uses **dynamic upstreams** (HAProxy **Data Plane API** or Envoy
+**xDS**): add/drain servers at runtime, **no rewrite-and-reload**. Edges are
+**read-only consumers** of signed membership → a compromised node can't poison
+routing; updates are **debounced/epoch-batched**. Reads + tx ingress are
+load-balanced; writes route by account-space (only relevant if/when sharded, D2).
 
-### D9 — MVP (v1) scope & phasing
-**DECIDED 2026-06-22 — phased:**
-- **v1:** transfers + fees, masternode validators (the D1a rotating committee),
-  governance, the API/wallet **compatibility gateway** (D7), and **state migration
-  from S4QL** (balances + base58 addresses carry over, D3/D10). A real, usable,
-  migratable chain.
-- **v2:** assets/tokens + on-chain DEX + dividends, **smart contracts (CosmWasm,
+### D9 — Phased delivery
+- **v1:** transfers + fees, masternode validators (D1a full set + VRF proposer
+  rotation), governance, the API/wallet **compatibility gateway** (D7), and **state
+  migration from S4QL** (balances + base58 addresses carry over, D3/D10). A real,
+  usable, migratable chain.
+- **v2:** assets/tokens (permissionless launch + per-asset fee pool; optional
+  dividends/inflatable/fixed-price), **smart contracts (CosmWasm,
   D6a)**, **AnyData (D6b)**, **proof-of-usage rewards (D5a)**.
-- **v3:** regional shards (IBC, D2) + the self-managing HAProxy edge (D8).
+- **v3 (only if needed):** **account-space sharding** (last resort, D2) + the
+  **dynamic self-managing edge** (D8).
 
 ### D10 — Migration / cutover
-**DECIDED 2026-06-22.** Snapshot S4QL state (accounts/balances, assets + asset
-balances + market orders, masternodes, governance/votes, aliases) → new-core
-**genesis**, **base58 addresses preserved** (D3). Validate against live, then cut
-over; keep a read-only historical bridge for the explorer.
-**Owner note:** the live chain is *lightly used right now*, so the parallel/shadow
-period can be short — favour a **fast snapshot + cutover** over a long dual-run,
-and do it **before usage grows**.
+Snapshot S4QL state (accounts/balances, assets + asset balances,
+masternodes, governance/votes, aliases) → new-core **genesis**, **base58 addresses
+preserved** (D3). Validate against live, then cut over; keep a read-only historical
+bridge for the explorer. The live chain is **lightly used now** → favour a **fast
+snapshot + cutover** over a long dual-run, and do it **before usage grows**.
 
 ### D11 — Repo & project setup
-**DECIDED 2026-06-22 — reuse & clean up the `lars/rebuild` branch** as the home of
-the new Go/Cosmos core (PHP `master` stays the live chain). Branch cleaned to a
-fresh starting point: PHP web/test cruft removed; `doc/` (apidoc) + `sdk/` kept as
-**API-parity references** for D7; handoff doc + a new README added. The new session
-sets up CI, linters, tests, and license.
+The `lars/rebuild` branch is the home of the new Go/Cosmos core (PHP `master` stays
+the live chain). Branch cleaned to a fresh starting point; `doc/` (apidoc) + `sdk/`
+kept as **API-parity references** for D7. The build session sets up CI, linters,
+tests, and license. **License choice is left to the dev community — to be discussed
+and decided at the next dev meeting.**
 
-## II.4 Decision log
+## 7. Build sequence
 
-**2026-06-22 — decisions (owner: angelos@exevior.com):**
-
-1. **No PoW in the consensus path.** Speed is Goal #1; PoW is slow/probabilistic
-   and extra hashrate does not raise throughput. (→ D1a)
-2. **Consensus = DPoS rotating committee on BFT-PoS** — ≈5–6 staked masternodes,
-   re-rolled per epoch via an unpredictable VRF, instant finality. (→ D1a)
-3. **"Participate by using" model LOCKED** = merchant edge nodes + proof-of-usage
-   loyalty + phone light-clients + randomness-from-usage. Consumer-phone compute/
-   storage/hashrate **excluded**. This is the genuine scale-by-usage engine and
-   ties directly to the BeepXtra loyalty product. (→ D1a)
-4. **Stack (provisional): Go + Cosmos SDK + CometBFT** — custom module for the
-   rotating-committee + VRF; reuse built-in balances/staking/governance modules; custom modules
-   for assets/loyalty/alias. (→ D1; owner may veto.)
-5. **Economics (in principle): PoS** — masternodes as bonded validators, cold
-   staking → delegation, 0.3% fee kept, governance via `x/gov`. (→ D4)
-6. **Keep existing base58 addresses** via a custom address codec (secp256k1 keys
-   unchanged) — existing wallets/balances keep working; clean migration. (→ D3)
-7. **Sharding: single chain first, regional shards later.** Ship one solid chain
-   with full features; scale out to per-region zones (cross-shard via IBC) as
-   adoption demands. (→ D2)
-8. **Features:** reuse built-in balances/staking/governance; custom modules for
-   assets/DEX/dividends and aliases. **Loyalty stays OFF-chain** (BeepXtra app);
-   chain = payments + tokens only. (→ D5)
-9. **Proof-of-usage rewards WANTED** as a separate on-chain mechanism — own design
-   point. (→ D5a, pending design)
-10. **Storage = proven engine** (RocksDB/IAVL) with AnyData + smart contracts as
-    modules on top (owner adopted the low-risk recommendation). Smart contracts
-    via **CosmWasm** (D6a); **AnyData** via on-chain hash + edge-node content to
-    avoid bloat (D6b). (→ D6)
-11. **API: keep current endpoints working** via a compatibility gateway (BeepWallet
-    / outlets / MerchD / PHP SDK), native API alongside. (→ D7)
-12. **Self-managing edge:** nodes/stores self-register; Steroid controller
-    auto-generates/reloads HAProxy; reads+ingress load-balanced, writes
-    shard-routed. (→ D8)
-13. **Phased delivery:** v1 payments core + migration; v2 assets/DEX/dividends +
-    contracts + AnyData + proof-of-usage; v3 regional shards + edge. (→ D9)
-14. **Migration:** snapshot S4QL → genesis (addresses preserved), short validate,
-    cut over. Chain is lightly used now → **fast cutover, do it before growth**. (→ D10)
-15. **Repo:** reuse + clean up the `lars/rebuild` branch as the new core's home;
-    PHP `master` stays the live chain. (→ D11)
-
-**✅ DECISION SEQUENCE COMPLETE (D1–D11).** Remaining work is *design detail* for
-the build session, not owner decisions:
-- **D5a** proof-of-usage rewards — genuine-usage definition, anti-Sybil, funding.
-- **D6a** smart-contract VM — recommend CosmWasm; integration + gas model.
-- **D6b** AnyData — data model (inline vs hash+edge), size limits, fee-by-size.
-- **D1a** sub-params — committee size, epoch length, exact VRF construction.
-- **D4** exact economic numbers — emission curve, reward splits, min bond.
-
-## II.5 First tasks for the new code session
 1. Confirm Go + Cosmos SDK + CometBFT scaffolding on the cleaned `lars/rebuild`.
-2. Build **v1** (D9): balances/transfers + fees, CometBFT over the **full bonded
-   masternode set with VRF proposer rotation** (revised D1a — see II.6 #3), `x/gov`,
-   the **API/wallet compatibility gateway** (D7, use `doc/` apidoc + `sdk/` as the
-   contract), and the **S4QL → genesis migration tool** (D10) with base58 addresses
-   preserved (D3).
-3. Flesh out the design-detail items above as you reach them.
-4. Then v2 (assets/DEX/dividends, CosmWasm, AnyData, proof-of-usage) and v3
-   (load-aware sharding + self-managing edge — see II.6 #1/#2).
+2. Build **v1** (D9): balances/transfers + fees; CometBFT over the **full bonded
+   masternode set with VRF proposer rotation** (D1a); `x/gov`; the **API/wallet
+   compatibility gateway** (D7, using `doc/` apidoc + `sdk/` as the contract); and
+   the **S4QL → genesis migration tool** (D10) with base58 addresses preserved (D3).
+3. Build **v2**: assets (permissionless launch + per-asset fee pool; optional
+   dividends/inflatable/fixed-price), CosmWasm (D6a), AnyData (D6b),
+   proof-of-usage rewards (D5a).
+4. **v3 only if a single chain saturates:** account-space sharding + dynamic edge.
 
-## II.6 Review concerns & resolutions (owner review, 2026-06-23)
-These refine/supersede earlier entries; the build session treats II.6 as binding.
+## 8. Design detail to finalize during build
 
-**#1 — Edge/HAProxy must NOT be driven by consensus nodes writing configs.**
-Risk (valid): split-brain config drift, blast radius if a node is compromised,
-reload churn under churn. **Resolution (revises §3b):**
-- Separate **control plane** from consensus. Nodes never write proxy config.
-- Membership = the chain's **signed, quorum-agreed validator set** (single source
-  of truth) — no per-node pushes.
-- Edge uses **dynamic upstreams** (HAProxy **Data Plane API** or Envoy **xDS**):
-  add/drain servers at runtime, **no rewrite-and-reload**.
-- Edges are **read-only** consumers of signed membership → compromised node can't
-  poison routing. Updates **debounced/epoch-batched**.
-
-**#2 — Sharding: no premature/geo sharding; no IBC at the till.**
-Risk (valid): geo-shards hotspot on flash sales; cross-shard IBC is too slow for
-checkout. **Resolution (revises D2/§3b):**
-- v1/v2 = **one high-throughput chain** (parallel/optimistic execution, ABCI 2.0
-  mempool lanes, edge read-replicas). Removes hotspots + cross-shard latency for
-  the realistic horizon.
-- Shard **only when a single chain is truly saturated**, by **account-space with
-  load-aware rebalancing** (hot merchants split/migrate) — **not** geography.
-- **Checkout never waits on cross-shard finality:** local = instant single-shard;
-  cross-region = **instant merchant acceptance via escrow/receipt + async
-  settlement** (or a fast coordinator path), never vanilla multi-block IBC.
-
-**#3 — VRF committee liveness.**
-Risk (valid): a small VRF committee can stall if it can't reach 2/3.
-**Resolution (revises D1a):**
-- **v1: CometBFT over the FULL bonded masternode set**; VRF used only for
-  **proposer/leader rotation** → keeps the "rotating source of truth" without a
-  fragile small voting set.
-- If consensus is later sharded: committees **sized in the dozens+**, **per-epoch**
-  rotation (not per-block), with **overlap + automatic fallback to the full set**
-  if 2/3 isn't reached within N rounds. (5–6 is rejected as unsafe/non-live.)
-
-**#4 — AnyData Data Availability + slashing (was missing).**
-Risk (valid): hash-on-chain + single edge node = data lost if that node dies.
-**Resolution (revises D6b):**
-- Blobs **erasure-coded + replicated (k-of-n survive loss)**, not single-node.
-- **Random proof-of-retrievability challenges → slash/withhold rewards** for nodes
-  that can't serve (the missing economic vector).
-- Or integrate an external **DA/permanence layer** (Celestia-style DA sampling, or
-  IPFS+Filecoin/Arweave) for blobs needing permanence. Small/critical data inline.
-
-**#5 — Proof-of-usage collusion / wash-trading.**
-Risk (valid): merchant+user loop txs paying 0.3% fee to farm emission.
-**Resolution (refines D5a) — principle: farming must cost more than it pays:**
-- Reward **counterparty diversity**, not raw volume; **sharp diminishing returns**
-  on repeated same-pair loops (loops → ~0).
-- Merchants post a **permissionless on-chain stake/bond**; misbehaviour →
-  **slash + automatic on-chain delisting**. Purely economic.
-- Fund from a **bounded, merchant-funded loyalty pool**, not open-ended emission —
-  so farming only drains a capped pot a merchant won't fund for self-dealing.
-- **On-chain graph/anomaly heuristics** (loop/Sybil-ring) → automatic reward
-  suppression. Purely on-chain economics — no off-chain authority of any kind.
-- Design goal: rewards ≤ the economic cost of farming, so attacks don't pay.
-
+These are build-time parameters, not open architecture questions:
+- **D4** — emission curve, reward splits, minimum bond.
+- **D5** — asset creation fee; per-asset fee-pool mechanics (funding, draw-down,
+  top-up, exhaustion behaviour); optional-param definitions.
+- **D5a** — exact `r`, decay curves, pool sizing/refill, diversity-tally shape.
+- **D6a** — CosmWasm gas model + integration.
+- **D6b** — inline-vs-hash size limits, fee-by-size, DA parameters.
+- **D1a** — exact VRF construction; (if v3 sharding is ever triggered) per-shard
+  committee sizing in the dozens+, per-epoch rotation, overlap + automatic fallback
+  to the full set if 2/3 isn't reached within N rounds.
+- **D10** — state reconciliation/audit step (balance-for-balance proof that the
+  new-core genesis matches live S4QL state before cutover); brief tx-freeze window
+  on the old chain to take a clean point-in-time snapshot.
