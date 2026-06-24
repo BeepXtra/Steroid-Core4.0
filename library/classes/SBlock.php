@@ -20,6 +20,21 @@ class SBlock {
     // if it cannot be obtained within $timeout seconds.
     private function acquire_apply_lock($timeout = 30) {
         global $db;
+        // The PDO layer uses persistent connections (PDO::ATTR_PERSISTENT), and a
+        // MySQL advisory lock is session-scoped and re-entrant. If an earlier
+        // request on THIS pooled connection was killed (PHP timeout, fatal error
+        // or client disconnect) before release_apply_lock() ran, the GET_LOCK is
+        // left held on the connection and is never freed — unlike LOCK TABLES,
+        // which a reused connection releases automatically. The leaked lock then
+        // blocks every other writer forever (GET_LOCK returns got=0), halting the
+        // chain. A worker only ever serves one request at a time, so any hold this
+        // session still has at the start of a block-apply is necessarily stale
+        // from a dead request. RELEASE_LOCK only affects the current session, so
+        // dropping it here is safe w.r.t. other concurrent writers; loop to clear
+        // re-entrant holds (count > 1).
+        while ($db->single("SELECT RELEASE_LOCK(:n)", [":n" => self::APPLY_LOCK]) == 1) {
+            // released one stale level held by this connection; keep going
+        }
         $got = $db->single("SELECT GET_LOCK(:n, :t)", [":n" => self::APPLY_LOCK, ":t" => $timeout]);
         if ($got != 1) {
             _log("Could not acquire block-apply lock (busy/timeout) - got=" . var_export($got, true));
