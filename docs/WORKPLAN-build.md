@@ -41,7 +41,7 @@
 - Genesis file validation tooling (balance-for-balance check)
 
 **LARS**
-- Spin up a sandbox Go environment on WebB2 for build/test
+- Spin up a sandbox Go environment on the VOYAGER and WAYFINDER masternodes for build/test
 - Run migration dry-runs against a S4QL snapshot
 - CI automation (build/test on push to `lars/rebuild`)
 
