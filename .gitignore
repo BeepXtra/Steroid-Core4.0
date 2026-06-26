@@ -1,1 +1,13 @@
 strdconfig.php
+
+# PHP first-stage source — removed from lars/rebuild; kept on disk by git rm --cached
+controllers/
+html/
+library/
+mine/
+models/
+tmp/
+
+# Go build artifacts
+/stereodd
+*.test
