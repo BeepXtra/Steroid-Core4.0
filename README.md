@@ -1,142 +1,176 @@
-# Steroid 4.0 — Next-Generation Core
+# Steroid Core 4.0
 
-> A high-performance, **BFT proof-of-stake Layer-1** built for **planet-scale retail
-> payments** — instant deterministic finality, permissionless tokens, smart
-> contracts, and on-chain proof-of-usage rewards.
+A retail payments and loyalty blockchain migrating its live chain from PHP/MySQL to Go + Cosmos SDK.
 
-Steroid 4.0 is the purpose-built, horizontally-scalable core of the Steroid network —
-the next stage of a roadmap planned since Steroid's **2018 inception**. The
-first-stage chain proved the model in production (2M+ blocks, live masternodes,
-assets, dividends, on-chain governance); Steroid 4.0 graduates that network to a
-high-throughput engine designed for sub-second settlement from the first store to the
-entire planet.
-
-> ⚠️ **Project status — active rebuild.**
-> This branch (`lars/rebuild`) is the home of the next-generation core, under active
-> development. The first-stage chain (PHP/MySQL, database `S4QL`, node `galileo`)
-> remains **in production on `master` until cutover — do not break it.**
+> **Branch:** `lars/rebuild` — the new Go/Cosmos core, under active development.  
+> **`master`** runs the original PHP/MySQL chain, live in production until cutover.
 
 ---
 
-## Why Steroid 4.0
+## The Problem
 
-Steroid was always a **staged roadmap**: ship a proven, rapidly-deployable
-first-stage node to launch the network and validate the retail model, then — once
-real adoption approached the first stage's designed limits — graduate to a
-purpose-built high-performance core. That milestone has arrived. Steroid 4.0 is
-engineered to remove the single-database ceiling of the first stage and deliver the
-throughput, finality, and feature depth that retail at scale demands.
+Retail payments on general-purpose blockchains are a bad fit. Card networks settle in 1–3 days and extract 1.5–3% per transaction; merchants absorb chargebacks with no recourse. Most chains that try to fix this either require customers to hold a gas token, lack native lock-then-settle payment semantics, or are fast enough at launch but hit throughput ceilings as load grows.
 
-## Goals
+Loyalty and rewards have the same mismatch. Merchant-funded reward programs require protocol-level guarantees that farming the program is unprofitable — something you cannot bolt on with a smart contract after the fact without significant complexity and attack surface.
 
-1. **Speed and capacity are premium** — high throughput via parallel execution.
-2. **Enterprise quality** — proven components, deterministic finality, auditable state.
-3. **Planet scale** — from the first store to global volume.
-4. **Retail payments are first-class.**
-5. **Full feature parity** with the first stage — nothing is lost in migration.
-6. **Scale on-chain first** — one high-throughput chain; shard only as a last resort.
+Steroid was built for this from day one: native `total / available / locked` balance accounting, a 0.3% flat fee, on-chain governance for chain parameters, and a proof-of-usage reward design where every check is O(1) and farming is structurally net-negative.
 
-## Key capabilities
+---
 
-- **Instant-finality consensus** — CometBFT **BFT proof-of-stake** over the **full
-  bonded masternode set**; sub-second deterministic settlement. A **VRF beacon**
-  drives proposer rotation, with entropy fed by everyday user transactions. No
-  proof-of-work.
-- **Retail payments** — native `total` / `available` / `locked` balance accounting:
-  funds are validated, locked at payment, and settled on finality. The 0.3% fee model
-  is carried forward.
-- **Permissionless tokens / assets** — any wallet can launch a token: pay a creation
-  fee, declare parameters and supply, and fund a **per-asset fee pool** so holders can
-  transact without holding the base coin. Optional declarable params:
-  manual/auto-dividends, dividend-only, inflatable supply, fixed-price.
-- **Smart contracts / DApps** — first-class **CosmWasm** (WebAssembly) contracts.
-- **AnyData** — on-chain data with an anti-bloat design: small data inline, large data
-  committed on-chain by hash with content served from the merchant edge layer;
-  durability via erasure-coding + proof-of-retrievability, or an external
-  data-availability / permanence layer.
-- **Proof-of-usage rewards** — merchant-funded, on-chain rewards for genuine activity;
-  **unprofitable to farm by construction**, O(1) checks, no identity system.
-- **On-chain governance** — masternode voting via `x/gov`, carrying forward existing
-  vote semantics and chain parameters.
-- **Human-readable aliases** — names mapped to addresses.
-- **Light-client friendly** — phone clients verify their own balances and transactions
-  trustlessly against the authenticated state tree.
-- **Drop-in compatibility** — existing **base58 addresses** preserved, plus a **REST
-  compatibility gateway** mirroring the current API, so existing wallets, merchant
-  integrations, and the PHP SDK keep working through migration.
+## Production History
 
-## Architecture at a glance
+The first-stage chain (PHP/MySQL, `master`) has been live since 2018:
+
+| Metric | Value |
+|--------|-------|
+| Chain height | 2M+ blocks |
+| Transactions | 17M+ |
+| Consensus | Argon2 PoW + round-robin masternode selection |
+| Block time | ~60 seconds target |
+| Average tx/block | ~8.4 |
+| Active features | Masternodes, on-chain assets/DEX, dividends, aliases, cold staking, governance |
+
+Third-party integrations in production: **BeepWallet**, **BeepXtra outlets**, **MerchD AI**.
+
+The first-stage node was designed to launch fast and prove the retail model — not for planetary throughput. It has done that job. The rebuild is the planned second stage, triggered by the chain approaching the performance ceiling inherent to a single-database design. The two chains run in parallel (strangler migration pattern); the PHP chain stays live until cutover.
+
+---
+
+## What's Being Built
+
+The rebuild migrates the core from PHP/MySQL to **Go + Cosmos SDK + CometBFT**, with the first-stage chain kept healthy and running in parallel until a fast snapshot-and-cutover migration.
 
 | Layer | Choice |
 |-------|--------|
-| Language / framework | **Go + Cosmos SDK** |
-| Consensus | **CometBFT** BFT-PoS — validators = masternodes, instant finality |
-| Leader selection | **VRF**-driven proposer rotation; entropy from user transactions |
-| Execution | **Parallel / optimistic** on a single high-throughput chain |
-| State & storage | **RocksDB + IAVL** authenticated state tree (light-client proofs) |
-| Addresses | **base58** (secp256k1) via a custom codec — continuity with the first stage |
-| Reused modules | balances/transfer, `x/staking`, `x/gov`, `x/authz`, `x/feegrant` |
-| Custom modules | assets, alias, proof-of-usage rewards, AnyData |
-| Smart contracts | **CosmWasm** |
-| Scaling | one chain first; **account-space sharding** only as a last resort |
-| Edge / routing | self-managing edge consuming the chain's **signed validator set** (nodes never write routing config) |
+| Language | Go |
+| Framework | Cosmos SDK |
+| Consensus | CometBFT BFT-PoS — validators = masternodes, instant finality |
+| Leader selection | VRF proposer rotation; entropy from user transactions |
+| Execution | Parallel / optimistic on a single high-throughput chain |
+| State | RocksDB + IAVL authenticated state tree (light-client proofs) |
+| Addresses | base58 (secp256k1), preserved via custom codec |
 
-## Economic security & anti-abuse
+**Cosmos SDK modules reused:** balances/transfer, `x/staking` (validator bonding ↔ 250k BPC masternode stake), `x/gov` (on-chain votes), `x/authz`, `x/feegrant`.
 
-Steroid 4.0 is **decentralized**, and all anti-abuse is **purely on-chain economics** —
-no off-chain gatekeeping. Integrity comes from:
+**Custom modules:** assets (permissionless token launch), alias (human-readable names), proof-of-usage rewards, AnyData.
 
-- **Staking / bonding** — masternodes are bonded validators (minimum self-bond);
-  misbehaviour is **slashable**.
-- **Cold staking → delegation** — holders delegate stake to validators.
-- **Fees and bounded reward pools** — rewards (e.g. proof-of-usage) are funded by
-  merchants from **bounded** pools, never by unbounded inflation.
-- **Diminishing returns & counterparty diversity** — repeated self-dealing loops are
-  net-negative by construction.
+---
+
+## Key Technical Differentiators
+
+### BFT Finality
+
+CometBFT consensus over the full bonded masternode set gives **sub-second deterministic finality**. A payment is final when the block is committed — no probabilistic waiting, no reorg risk. Retail requires this; PoW chains do not provide it.
+
+### Parallel / Optimistic Execution
+
+Transactions touching disjoint account pairs run concurrently within a block. Single chain; no sharding required at v1/v2 throughput targets. Account-space sharding exists as a v3 option if a single chain saturates, but the design goal is to avoid needing it.
+
+### Native Payment Semantics
+
+Balance state is `total / available / locked`. On payment: validate `available`, atomically move the amount to `locked`, settle on block finality. No external coordination, no double-spend window between payment acceptance and settlement.
+
+### Proof-of-Usage Rewards
+
+On-chain rewards funded by merchants, not by protocol inflation:
+
+- **Merchant-funded pools.** Each merchant locks two on-chain pots: a slashable bond and a bounded reward pool. The pool is the only source of customer rewards — the protocol emits nothing.
+- **Reward = `r × fee_paid`, `r < 1`, always.** Any self-dealing loop is net-negative per iteration. Farming cannot be made profitable by construction.
+- **Same-pair diminishing returns.** A per-`(payer, payee)` counter decays `r` toward ~0 for repeated loops over the same pair.
+- **O(1) checks.** Single state lookup per reward evaluation. No identity system, no Sybil-ring detection.
+- **Misbehaviour** → slash + automatic on-chain delisting.
+
+### VRF Proposer Rotation
+
+A VRF beacon drives block proposer selection. Entropy is fed by ordinary user transactions — the chain's own activity drives randomness without a separate randomness oracle.
+
+### Base58 Address Preservation
+
+Existing addresses carry over directly into the new chain's genesis. External wallets, merchant integrations, and the PHP SDK continue working through and after migration via a REST compatibility gateway mirroring the current API endpoints.
+
+---
+
+## Validator / Masternode Participation
+
+Masternodes from the first-stage chain become **bonded validators** in the new core.
+
+| Parameter | Value |
+|-----------|-------|
+| Minimum self-bond | 250,000 BPC |
+| Consensus role | CometBFT BFT-PoS validator |
+| Rewards | Block rewards + tx fees (emission curve finalized during v1 build) |
+| Slashing | Double-signing and liveness faults |
+| Cold staking | Supported — delegators stake to validators without running a node |
+
+The validator set participates in on-chain governance via `x/gov`. Existing vote semantics (emission parameters, masternode reward splits, governance thresholds) carry forward.
+
+**To run a validator node:** join instructions and testnet genesis will be published here when v1 scaffolding is live. Watch this branch or the community channel (link TBD) for announcements.
+
+---
 
 ## Roadmap
 
-- **v1 — Payments core:** transfers + fees, masternode validators (full set + VRF
-  proposer rotation), governance, the REST compatibility gateway, and S4QL → genesis
-  migration (base58 addresses preserved). A real, usable, migratable chain.
-- **v2 — Feature depth:** permissionless assets/tokens (per-asset fee pool + optional
-  params), CosmWasm smart contracts, AnyData, proof-of-usage rewards.
-- **v3 — Scale insurance (only if needed):** account-space sharding + the dynamic
-  self-managing edge.
+### v1 — Payments Core
 
-## Migration & compatibility
+- Transfers + 0.3% fee
+- CometBFT BFT-PoS over the full bonded masternode set with VRF proposer rotation
+- `x/gov` — on-chain governance with existing vote semantics
+- REST compatibility gateway — existing wallets and integrations keep working unchanged
+- S4QL → genesis migration tool — base58 addresses preserved, balance-for-balance audit proof run before cutover
 
-State migrates by **snapshotting the first-stage chain into the new-core genesis**
-with **base58 addresses preserved**, validated balance-for-balance before a fast
-cutover. Existing external clients keep working via the REST compatibility gateway,
-and full historical data remains available to explorers. See
-[`docs/WORKPLAN-migration.md`](docs/WORKPLAN-migration.md).
+**Deliverable:** a real, usable, migratable chain. First-stage validators upgrade directly.
 
-## Repository layout
+### v2 — Feature Depth
 
-| Path | Purpose |
-|------|---------|
-| [`docs/FUTURE-ARCHITECTURE.md`](docs/FUTURE-ARCHITECTURE.md) | **Source of truth** — full architecture & decision log (D1–D11) |
-| [`docs/WORKPLAN-build.md`](docs/WORKPLAN-build.md) | Build workplan — roles & phasing |
-| [`docs/WORKPLAN-migration.md`](docs/WORKPLAN-migration.md) | Migration workplan — through cutover |
-| `doc/` | First-stage API documentation (apidoc) — the compatibility-gateway contract |
-| `sdk/` | First-stage PHP SDK — endpoint shapes / example client usage |
+- Permissionless assets / tokens: creation fee, per-asset fee pool (token holders transact without holding BPC), optional params (manual/auto-dividends, dividend-only, inflatable supply, fixed-price)
+- CosmWasm smart contracts
+- AnyData: small data inline on-chain; large data committed by hash, content served from the merchant edge layer with erasure-coded replication and proof-of-retrievability
+- Proof-of-usage rewards
 
-## Documentation
+### v3 — Scale Insurance (only if needed)
 
-- **Architecture & decisions:** [`docs/FUTURE-ARCHITECTURE.md`](docs/FUTURE-ARCHITECTURE.md) — the authoritative spec.
-- **Security policy:** [`SECURITY.md`](SECURITY.md).
+Account-space sharding with load-aware rebalancing, and a dynamic self-managing edge routing layer. Triggered only if a single chain saturates — the goal is not to need it.
 
-## Development
+---
 
-- **`lars/rebuild`** — the next-generation Go/Cosmos core (this branch).
-- **`master`** — the first-stage PHP/MySQL chain, **live in production until cutover**.
+## Running Locally
 
-CI, linters, and tests are configured for the rebuild. Implementation follows the
-build workplan; build-time parameters (economics, gas models, sizing) are finalized
-during development per §8 of the architecture doc.
+> **TODO** — Go scaffolding is not yet committed to this branch. This section will be completed when the module, Cosmos SDK wiring, and CI are in place.
 
-## License
+Expected prerequisites when available:
 
-To be decided by the dev community at the next dev meeting (decision D11). A `LICENSE`
-file will be added then.
+```sh
+# Prerequisites
+go 1.22+
+
+# Build
+make build
+
+# Run tests
+make test
+```
+
+Migration tooling for testing against a local S4QL snapshot will be documented in [`docs/WORKPLAN-migration.md`](docs/WORKPLAN-migration.md).
+
+---
+
+## Repository Layout
+
+| Path | Contents |
+|------|----------|
+| [`docs/FUTURE-ARCHITECTURE.md`](docs/FUTURE-ARCHITECTURE.md) | Full architecture spec and decision log (D1–D11) — the authoritative source of truth |
+| [`docs/WORKPLAN-build.md`](docs/WORKPLAN-build.md) | Build phases and role assignments |
+| [`docs/WORKPLAN-migration.md`](docs/WORKPLAN-migration.md) | Migration plan through cutover |
+| `doc/` | First-stage API documentation (apidoc) — the REST compatibility gateway contract |
+| `sdk/` | First-stage PHP SDK — endpoint shapes and example client usage |
+
+---
+
+## Links
+
+- Full architecture spec: [`docs/FUTURE-ARCHITECTURE.md`](docs/FUTURE-ARCHITECTURE.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- Block explorer: [explorer.steroid.io](https://explorer.steroid.io)
+- Website: [steroid.io](https://www.steroid.io)
+- Community / Discord: TBD
+- Security disclosures: [devteam@steroid.io](mailto:devteam@steroid.io)
