@@ -1,5 +1,13 @@
 # Security Policy
 
+Steroid 4.0 is a **BFT proof-of-stake Layer-1** whose integrity rests on **on-chain
+economic security** — bonded validators, slashing, bounded reward pools, and
+light-client verification (see [`docs/FUTURE-ARCHITECTURE.md`](docs/FUTURE-ARCHITECTURE.md)).
+We take the security of the network and its participants seriously and welcome
+responsible disclosure.
+
+---
+
 ## Supported Versions
 
 The following versions of Steroid4.0 Blockchain are currently supported with security updates:
