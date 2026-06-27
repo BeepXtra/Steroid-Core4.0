@@ -84,6 +84,10 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+
+	"github.com/cosmos/cosmos-sdk/x/consensus"
+	consensuskeeper "github.com/cosmos/cosmos-sdk/x/consensus/keeper"
+	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
 )
 
 const Name = "steroid"
@@ -114,6 +118,7 @@ var ModuleBasics = module.NewBasicManager(
 	}),
 	params.AppModuleBasic{},
 	crisis.AppModuleBasic{},
+	consensus.AppModuleBasic{},
 	genutil.NewAppModuleBasic(genutiltypes.DefaultMessageValidator),
 )
 
@@ -138,8 +143,9 @@ type App struct {
 	DistrKeeper    distrkeeper.Keeper
 	SlashingKeeper slashingkeeper.Keeper
 	MintKeeper     mintkeeper.Keeper
-	ParamsKeeper   paramskeeper.Keeper
-	CrisisKeeper   *crisiskeeper.Keeper
+	ParamsKeeper        paramskeeper.Keeper
+	CrisisKeeper        *crisiskeeper.Keeper
+	ConsensusParamKeeper consensuskeeper.Keeper
 
 	// ── Custom module keepers (v2 set — added per workplan spec) ─────────────
 	// TODO(D5): AssetsKeeper assetskeeper.Keeper
@@ -147,6 +153,18 @@ type App struct {
 
 	ModuleManager *module.Manager
 	configurator  module.Configurator
+}
+
+// moduleAuthority returns the base58-encoded address of a module account.
+// All keepers that accept an `authority string` must receive a base58 address
+// so that our steroidaddress.Codec can validate it during keeper init.
+func moduleAuthority(moduleName string) string {
+	addr := authtypes.NewModuleAddress(moduleName)
+	s, err := steroidaddress.Codec{}.BytesToString(addr)
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 // New creates and initialises the App.
@@ -190,6 +208,7 @@ func New(
 		minttypes.StoreKey,
 		paramstypes.StoreKey,
 		crisistypes.StoreKey,
+		consensusparamtypes.StoreKey,
 	)
 	app.tkeys = storetypes.NewTransientStoreKeys(paramstypes.TStoreKey)
 
@@ -209,20 +228,21 @@ func New(
 		maccPerms,
 		steroidaddress.Codec{}, // D3: base58 address codec
 		"steroid",
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 	)
 
 	// ── BankKeeper ───────────────────────────────────────────────────────────
+	// D3: blocked-address map keys must be base58 to match our keeper codec.
 	blockedAddrs := make(map[string]bool)
 	for name := range maccPerms {
-		blockedAddrs[authtypes.NewModuleAddress(name).String()] = true
+		blockedAddrs[moduleAuthority(name)] = true
 	}
 	app.BankKeeper = bankkeeper.NewBaseKeeper(
 		app.cdc,
 		runtime.NewKVStoreService(app.keys[banktypes.StoreKey]),
 		app.AccountKeeper,
 		blockedAddrs,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 		logger,
 	)
 
@@ -232,7 +252,7 @@ func New(
 		runtime.NewKVStoreService(app.keys[stakingtypes.StoreKey]),
 		app.AccountKeeper,
 		app.BankKeeper,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 		steroidaddress.Codec{}, // D3: validator operator addresses
 		steroidaddress.Codec{}, // D3: consensus node addresses
 	)
@@ -245,7 +265,7 @@ func New(
 		app.BankKeeper,
 		app.StakingKeeper,
 		authtypes.FeeCollectorName,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 	)
 
 	// ── SlashingKeeper ───────────────────────────────────────────────────────
@@ -254,7 +274,7 @@ func New(
 		app.amino,
 		runtime.NewKVStoreService(app.keys[slashingtypes.StoreKey]),
 		app.StakingKeeper,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 	)
 
 	// ── CrisisKeeper ─────────────────────────────────────────────────────────
@@ -264,7 +284,7 @@ func New(
 		1, // invCheckPeriod — every block during v1 dev; tune for production
 		app.BankKeeper,
 		authtypes.FeeCollectorName,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 		steroidaddress.Codec{}, // D3
 	)
 
@@ -276,7 +296,7 @@ func New(
 		app.AccountKeeper,
 		app.BankKeeper,
 		authtypes.FeeCollectorName,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 	)
 
 	// ── GovKeeper ────────────────────────────────────────────────────────────
@@ -289,13 +309,22 @@ func New(
 		app.DistrKeeper,
 		bApp.MsgServiceRouter(),
 		govtypes.DefaultConfig(),
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		moduleAuthority(govtypes.ModuleName),
 	)
 	govRouter := govv1beta1.NewRouter()
 	govRouter.
 		AddRoute(govtypes.RouterKey, govv1beta1.ProposalHandler).
 		AddRoute(paramproposal.RouterKey, params.NewParamChangeProposalHandler(app.ParamsKeeper))
 	app.GovKeeper.SetLegacyRouter(govRouter)
+
+	// ── ConsensusParamKeeper — required by baseapp.SetParamStore ────────────
+	app.ConsensusParamKeeper = consensuskeeper.NewKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[consensusparamtypes.StoreKey]),
+		moduleAuthority(govtypes.ModuleName),
+		runtime.EventService{},
+	)
+	bApp.SetParamStore(app.ConsensusParamKeeper.ParamsStore)
 
 	// ── Staking hooks — must be set after DistrKeeper + SlashingKeeper ───────
 	app.StakingKeeper.SetHooks(
@@ -324,6 +353,7 @@ func New(
 		mint.NewAppModule(app.cdc, app.MintKeeper, app.AccountKeeper, nil, app.GetSubspace(minttypes.ModuleName)),
 		gov.NewAppModule(app.cdc, app.GovKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(govtypes.ModuleName)),
 		params.NewAppModule(app.ParamsKeeper),
+		consensus.NewAppModule(app.cdc, app.ConsensusParamKeeper),
 	)
 
 	// Module execution ordering. Canonical v1 set ordering from Cosmos SDK.
@@ -338,6 +368,7 @@ func New(
 		authtypes.ModuleName,
 		banktypes.ModuleName,
 		paramstypes.ModuleName,
+		consensusparamtypes.ModuleName,
 	)
 	app.ModuleManager.SetOrderEndBlockers(
 		crisistypes.ModuleName,
@@ -350,10 +381,11 @@ func New(
 		slashingtypes.ModuleName,
 		minttypes.ModuleName,
 		paramstypes.ModuleName,
+		consensusparamtypes.ModuleName,
 	)
 	// auth must be first so accounts exist before any other module reads balances.
 	// staking must precede slashing (slashing reads validator state set by staking).
-	// genutil must be last: processes genesis txs after all modules are initialised.
+	// consensus must come before genutil; genutil must be last.
 	app.ModuleManager.SetOrderInitGenesis(
 		authtypes.ModuleName,
 		banktypes.ModuleName,
@@ -364,6 +396,7 @@ func New(
 		minttypes.ModuleName,
 		crisistypes.ModuleName,
 		paramstypes.ModuleName,
+		consensusparamtypes.ModuleName,
 		genutiltypes.ModuleName,
 	)
 
@@ -387,6 +420,11 @@ func New(
 		panic(err)
 	}
 	bApp.SetAnteHandler(anteHandler)
+
+	// ── ABCI handler wiring ──────────────────────────────────────────────────
+	app.SetInitChainer(app.InitChainer)
+	app.SetBeginBlocker(app.BeginBlocker)
+	app.SetEndBlocker(app.EndBlocker)
 
 	// ── Store mounting ────────────────────────────────────────────────────────
 	app.MountKVStores(app.keys)

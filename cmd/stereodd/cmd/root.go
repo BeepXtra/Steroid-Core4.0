@@ -25,6 +25,8 @@ import (
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
+	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
 	"github.com/beepxtra/steroid-core4.0/app"
 )
@@ -65,11 +67,11 @@ func NewRootCmd() *cobra.Command {
 	// The sdk.Config bech32 prefixes are unused; our address.Codec handles
 	// all string ↔ bytes conversion.
 
-	initRootCmd(rootCmd)
+	initRootCmd(rootCmd, encodingConfig.TxConfig)
 	return rootCmd
 }
 
-func initRootCmd(rootCmd *cobra.Command) {
+func initRootCmd(rootCmd *cobra.Command, txConfig client.TxConfig) {
 	rootCmd.AddCommand(
 		genutilcli.InitCmd(app.ModuleBasics, app.DefaultNodeHome),
 		debug.Cmd(),
@@ -83,6 +85,19 @@ func initRootCmd(rootCmd *cobra.Command) {
 		server.StatusCommand(),
 		genutilcli.ValidateGenesisCmd(app.ModuleBasics),
 		genutilcli.AddGenesisAccountCmd(app.DefaultNodeHome, steroidaddress.Codec{}),
+		genutilcli.GenTxCmd(
+			app.ModuleBasics,
+			txConfig,
+			banktypes.GenesisBalancesIterator{},
+			app.DefaultNodeHome,
+			steroidaddress.Codec{},
+		),
+		genutilcli.CollectGenTxsCmd(
+			banktypes.GenesisBalancesIterator{},
+			app.DefaultNodeHome,
+			genutiltypes.DefaultMessageValidator,
+			steroidaddress.Codec{},
+		),
 		keys.Commands(),
 	)
 

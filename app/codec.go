@@ -7,16 +7,27 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
+	"github.com/cosmos/gogoproto/proto"
+	txsigning "cosmossdk.io/x/tx/signing"
 
+	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
 	appparams "github.com/beepxtra/steroid-core4.0/app/params"
 )
 
 // MakeEncodingConfig returns an EncodingConfig for the Steroid chain.
-//
-// TODO(D3): replace bech32 with a custom base58 address codec (secp256k1 keys
-// unchanged) to preserve first-stage addresses through migration. See D3.
 func MakeEncodingConfig() appparams.EncodingConfig {
-	ir := codectypes.NewInterfaceRegistry()
+	// D3: wire base58 codec into the signing context so the InterfaceRegistry
+	// can convert addresses during tx signing (gentx, send, etc.).
+	ir, err := codectypes.NewInterfaceRegistryWithOptions(codectypes.InterfaceRegistryOptions{
+		ProtoFiles: proto.HybridResolver,
+		SigningOptions: txsigning.Options{
+			AddressCodec:          steroidaddress.Codec{},
+			ValidatorAddressCodec: steroidaddress.Codec{},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 	cdc := codec.NewProtoCodec(ir)
 	amino := codec.NewLegacyAmino()
 

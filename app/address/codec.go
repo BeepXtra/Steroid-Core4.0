@@ -26,6 +26,7 @@ import (
 	"math/big"
 
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	sdkbech32 "github.com/cosmos/cosmos-sdk/types/bech32"
 )
 
 // alphabet is the standard Bitcoin base58 alphabet, identical to the
@@ -37,16 +38,27 @@ const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 // consensus node addresses throughout the Steroid chain.
 type Codec struct{}
 
-// StringToBytes decodes a base58 address string to its raw byte representation.
+// StringToBytes decodes an address string to raw bytes.
+// Accepts base58 (Steroid native format) or bech32 (SDK internal format).
+// Bech32 support is required for SDK compatibility: several SDK modules
+// (auth, bank, staking) hardcode sdk.AccAddressFromBech32 inside proto types
+// (e.g. BaseAccount.GetAddress), so genesis JSON produced by SDK tools contains
+// bech32 strings that must round-trip through this codec.
 func (Codec) StringToBytes(text string) ([]byte, error) {
 	if text == "" {
 		return []byte{}, nil
 	}
+	// Try base58 first — the Steroid canonical format.
 	b, err := Base58Decode(text)
-	if err != nil {
-		return nil, fmt.Errorf("invalid steroid address %q: %w", text, err)
+	if err == nil && len(b) > 0 {
+		return b, nil
 	}
-	return b, nil
+	// Fall back to bech32 for SDK-internal addresses (module accounts, genesis).
+	_, addr, bech32Err := sdkbech32.DecodeAndConvert(text)
+	if bech32Err == nil {
+		return addr, nil
+	}
+	return nil, fmt.Errorf("invalid steroid address %q: not valid base58 or bech32", text)
 }
 
 // BytesToString base58-encodes a raw address byte slice.
