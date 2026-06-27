@@ -1,48 +1,69 @@
-# node
+# Steroid Core 4.0
 
-The Steroid4.0 (BPC) masternode testnet.
+BFT proof-of-stake Layer-1 blockchain — Go/Cosmos SDK rewrite of the Steroid (BPC) network.
 
-## Install
-### script install
+> **Branch layout**
+> - `master` — live PHP/MySQL first-stage chain (do not modify)
+> - `lars/rebuild` — this Go core; feature branches PR here
+> - `claude/galileo-scaffolding-*` — current scaffolding work in progress
 
+## Stack
 
+| Component | Version |
+|-----------|---------|
+| Go | 1.22+ |
+| Cosmos SDK | v0.50.10 |
+| CometBFT (ABCI 2.0) | v0.38.12 |
+| Store / IAVL | cosmossdk.io/store v1.1.1 |
 
-### Manual Install
-**Hardware Requirements:**
+## Build
+
+```sh
+# requires Go 1.22+
+make build          # → ./stereodd binary
+make install        # installs to $GOPATH/bin
+make test           # unit tests
+make lint           # golangci-lint (requires golangci-lint v1.61+)
 ```
-2GB RAM
-1 CPU Core
-50GB DISK
+
+## Run a local node
+
+```sh
+stereodd init moniker --chain-id steroid-local-1
+stereodd start
 ```
-**Requirements:**
 
-- PHP >= 7.2
-  - PDO extension
-  - GMP extension
-  - BCMath extension
-- MySQL/MariaDB >= 5.7.x 
+## Repository layout
 
-1. Install MySQL or MariaDB and create a database and a user.
-2. Rename `include/config-sample.inc.php` to  `include/config.inc.php` and set the DB login data
-3. Change permissions to tmp and `tmp/db-update` to 777 (`chmod 777 tmp -R`)
-4. Access the http://ip-or-domain and refresh once
+```
+app/              Cosmos SDK application wiring
+  params/         EncodingConfig
+  codec.go        MakeEncodingConfig (bech32 → base58 at D3)
+  app.go          App struct, keeper stubs, ABCI interface
+cmd/stereodd/     CLI entry point
+proto/            Protobuf definitions (planned — buf toolchain)
+x/                Custom modules (planned — x/assets, x/alias at D5)
+doc/              First-stage REST API reference (parity contract for D7)
+sdk/php/          PHP SDK (first-stage reference)
+docs/             Architecture spec and workplans
+```
 
-## Usage
+## Design decisions (open TODOs)
 
-This app should only be run in the main directory of the domain/subdomain, ex: http://111.111.111.111
+| ID | Decision |
+|----|----------|
+| D1a | VRF proposer rotation via custom PrepareProposal/ProcessProposal |
+| D3 | Custom base58 address codec to preserve first-stage addresses |
+| D4 | Emission curve, reward splits, min-bond (250k BPC) |
+| D5 | x/assets and x/alias custom modules |
+| D7 | REST compatibility gateway mirroring `doc/` apidoc |
+| D10 | S4QL → genesis migration tool |
 
-The node should have a public IP and be accessible over internet.
+See [`docs/FUTURE-ARCHITECTURE.md`](docs/FUTURE-ARCHITECTURE.md) for the full spec.
 
 ## Links
 
 - [Official website](https://www.steroid.io)
-- [Block explorer](https://explorer.steroid.io) 
-- [BTC Talk Thread](https://bitcointalk.org/index.php?topic=4721744)
-
-## 3rd Party Integrations
+- [Block explorer](https://explorer.steroid.io)
 - [BeepXtra Loyalty Systems](https://outlets.beepxtra.com/)
-- [BeepWallet](https://wallet.beepxtra.com/)
-- MerchD AI (No link - proprietory private project)
-
-If you'd like to support the Steroid4.0 development please contact us
-devteam@exevior.com
+- Security issues: devteam@steroid.io (see [SECURITY.md](SECURITY.md))
