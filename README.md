@@ -198,16 +198,19 @@ layer. Triggered only if a single chain saturates.
 
 ## Running Locally
 
-> **TODO** — Go scaffolding is not yet committed to this branch. This section will be
-> completed when the module, Cosmos SDK wiring, and CI are in place.
-
-Expected prerequisites when available:
+Prerequisites: Go 1.22+
 
 ```sh
-go 1.22+
-make build
-make test
+make build          # compiles → ./stereodd
+make install        # installs to $GOPATH/bin
+make test           # unit tests
+make lint           # golangci-lint (requires golangci-lint v1.61+)
 ```
+
+> **Status:** the Go module, Cosmos SDK wiring, CLI, and CI are in place (`go build ./...`
+> passes clean). Keeper initialisation (auth, bank, staking, gov, distr, slashing, mint,
+> crisis) and module manager wiring are the next task — `stereodd start` is not yet
+> meaningful to run until that task is complete.
 
 Migration tooling for testing against a local S4QL snapshot will be documented in
 [`docs/WORKPLAN-migration.md`](docs/WORKPLAN-migration.md).
@@ -221,6 +224,10 @@ Migration tooling for testing against a local S4QL snapshot will be documented i
 | [`docs/FUTURE-ARCHITECTURE.md`](docs/FUTURE-ARCHITECTURE.md) | Full architecture spec and decision log (D1–D11) — start here |
 | [`docs/WORKPLAN-build.md`](docs/WORKPLAN-build.md) | Build phases and role assignments |
 | [`docs/WORKPLAN-migration.md`](docs/WORKPLAN-migration.md) | Migration plan through cutover |
+| `app/` | Cosmos SDK application wiring (BaseApp, keeper stubs, ABCI interface) |
+| `cmd/stereodd/` | CLI entry point |
+| `proto/` | Protobuf definitions (planned — buf toolchain, custom modules) |
+| `x/` | Custom modules (planned — x/assets, x/alias at D5) |
 | `doc/` | First-stage API documentation (apidoc) — REST compatibility gateway contract |
 | `sdk/` | First-stage PHP SDK — endpoint shapes and example client usage |
 

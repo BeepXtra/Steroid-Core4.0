@@ -1,0 +1,43 @@
+run:
+  timeout: 5m
+  go: "1.22"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - gocritic
+    - misspell
+    - unconvert
+    - unparam
+  disable:
+    - depguard
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/beepxtra/steroid-core4.0
+  gocritic:
+    disabled-checks:
+      - appendAssign
+      - hugeParam
+  staticcheck:
+    checks:
+      - "all"
+      - "-SA1019"  # allow deprecated usage during migration from first-stage SDK patterns
+
+issues:
+  exclude-rules:
+    # Permit TODO comments for architecture-tracked design decisions.
+    - linters: [godot, godox]
+      text: "TODO"
+    # Allow nolint for govv1.ParamKeyTable deprecated call (kept for now).
+    - linters: [staticcheck]
+      text: "SA1019"
+  max-same-issues: 0
+  max-issues-per-linter: 0
