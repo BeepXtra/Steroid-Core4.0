@@ -27,8 +27,9 @@ import (
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/runtime"
+
+	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
@@ -206,7 +207,7 @@ func New(
 		runtime.NewKVStoreService(app.keys[authtypes.StoreKey]),
 		authtypes.ProtoBaseAccount,
 		maccPerms,
-		address.NewBech32Codec("steroid"), // TODO(D3): swap for base58 codec
+		steroidaddress.Codec{}, // D3: base58 address codec
 		"steroid",
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
@@ -232,8 +233,8 @@ func New(
 		app.AccountKeeper,
 		app.BankKeeper,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
-		address.NewBech32Codec("steroidvaloper"),
-		address.NewBech32Codec("steroidvalcons"),
+		steroidaddress.Codec{}, // D3: validator operator addresses
+		steroidaddress.Codec{}, // D3: consensus node addresses
 	)
 
 	// ── DistrKeeper ──────────────────────────────────────────────────────────
@@ -264,7 +265,7 @@ func New(
 		app.BankKeeper,
 		authtypes.FeeCollectorName,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
-		address.NewBech32Codec("steroid"),
+		steroidaddress.Codec{}, // D3
 	)
 
 	// ── MintKeeper ───────────────────────────────────────────────────────────
