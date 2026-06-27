@@ -3,11 +3,7 @@
 // v1 core module set: auth, bank, staking, gov, distribution, slashing, mint,
 // params, crisis, genutil.
 //
-// Additional modules (authz, feegrant, evidence, upgrade) are included in the
-// struct stubs and will be fully wired once the keeper initialisation is written
-// (TheRealGofre, per workplan spec from G4L1L3O).
-//
-// Design decisions that are scaffolded here but implemented later:
+// Design decisions scaffolded here but implemented later:
 //   - TODO(D1a): VRF proposer rotation — custom PrepareProposal/ProcessProposal handlers.
 //   - TODO(D3):  Custom base58 address codec (see app/codec.go).
 //   - TODO(D4):  Emission curve, reward splits, min-bond economic parameters.
@@ -31,6 +27,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	"github.com/cosmos/cosmos-sdk/codec/address"
+	"github.com/cosmos/cosmos-sdk/runtime"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
@@ -41,38 +39,50 @@ import (
 	cmtservice "github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
 	nodeservice "github.com/cosmos/cosmos-sdk/client/grpc/node"
 
+	"github.com/cosmos/cosmos-sdk/x/auth"
+	"github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
+	"github.com/cosmos/cosmos-sdk/x/bank"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
+	"github.com/cosmos/cosmos-sdk/x/crisis"
 	crisiskeeper "github.com/cosmos/cosmos-sdk/x/crisis/keeper"
 	crisistypes "github.com/cosmos/cosmos-sdk/x/crisis/types"
 
+	distr "github.com/cosmos/cosmos-sdk/x/distribution"
 	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
 	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 
+	"github.com/cosmos/cosmos-sdk/x/genutil"
+	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+
+	"github.com/cosmos/cosmos-sdk/x/gov"
+	govclient "github.com/cosmos/cosmos-sdk/x/gov/client"
 	govkeeper "github.com/cosmos/cosmos-sdk/x/gov/keeper"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	govv1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
 	govv1beta1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 
+	"github.com/cosmos/cosmos-sdk/x/mint"
 	mintkeeper "github.com/cosmos/cosmos-sdk/x/mint/keeper"
 	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
 
+	"github.com/cosmos/cosmos-sdk/x/params"
+	paramsclient "github.com/cosmos/cosmos-sdk/x/params/client"
 	paramskeeper "github.com/cosmos/cosmos-sdk/x/params/keeper"
 	paramstypes "github.com/cosmos/cosmos-sdk/x/params/types"
 	paramproposal "github.com/cosmos/cosmos-sdk/x/params/types/proposal"
 
+	"github.com/cosmos/cosmos-sdk/x/slashing"
 	slashingkeeper "github.com/cosmos/cosmos-sdk/x/slashing/keeper"
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 
+	"github.com/cosmos/cosmos-sdk/x/staking"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-
-	"github.com/cosmos/cosmos-sdk/x/genutil"
-	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
 )
 
 const Name = "steroid"
@@ -92,11 +102,21 @@ var maccPerms = map[string][]string{
 
 // ModuleBasics defines the module codec for the CLI and genesis.
 var ModuleBasics = module.NewBasicManager(
+	auth.AppModuleBasic{},
+	bank.AppModuleBasic{},
+	staking.AppModuleBasic{},
+	distr.AppModuleBasic{},
+	slashing.AppModuleBasic{},
+	mint.AppModuleBasic{},
+	gov.NewAppModuleBasic([]govclient.ProposalHandler{
+		paramsclient.ProposalHandler,
+	}),
+	params.AppModuleBasic{},
+	crisis.AppModuleBasic{},
 	genutil.NewAppModuleBasic(genutiltypes.DefaultMessageValidator),
 )
 
-// App is the Steroid blockchain application. It embeds baseapp.BaseApp and
-// wires Cosmos SDK modules onto CometBFT BFT-PoS consensus.
+// App is the Steroid blockchain application.
 type App struct {
 	*baseapp.BaseApp
 
@@ -119,13 +139,6 @@ type App struct {
 	MintKeeper     mintkeeper.Keeper
 	ParamsKeeper   paramskeeper.Keeper
 	CrisisKeeper   *crisiskeeper.Keeper
-
-	// ── Extended SDK module keepers (to be wired per module spec) ─────────────
-	// These are declared so the struct is ready; keeper init is in a follow-on task.
-	// UpgradeKeeper  upgradekeeper.Keeper  // TODO: wire x/upgrade
-	// EvidenceKeeper evidencekeeper.Keeper // TODO: wire x/evidence
-	// AuthzKeeper    authzkeeper.Keeper    // TODO: wire x/authz
-	// FeeGrantKeeper feegrantkeeper.Keeper // TODO: wire x/feegrant
 
 	// ── Custom module keepers (v2 set — added per workplan spec) ─────────────
 	// TODO(D5): AssetsKeeper assetskeeper.Keeper
@@ -186,23 +199,197 @@ func New(
 		app.keys[paramstypes.StoreKey],
 		app.tkeys[paramstypes.TStoreKey],
 	)
-	// NOTE(D4): x/consensus keeper + bApp.SetParamStore wiring left for keeper
-	// initialisation task. New chains receive consensus params automatically in
-	// InitChain — no legacy params subspace migration needed.
 
-	// ── Module keeper initialisation (TODO per module spec) ───────────────────
-	// Each keeper will be fully initialised when its module spec is finalised and
-	// handed off. The struct fields above keep the types visible.
+	// ── AccountKeeper ─────────────────────────────────────────────────────────
+	app.AccountKeeper = authkeeper.NewAccountKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[authtypes.StoreKey]),
+		authtypes.ProtoBaseAccount,
+		maccPerms,
+		address.NewBech32Codec("steroid"), // TODO(D3): swap for base58 codec
+		"steroid",
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
+
+	// ── BankKeeper ───────────────────────────────────────────────────────────
+	blockedAddrs := make(map[string]bool)
+	for name := range maccPerms {
+		blockedAddrs[authtypes.NewModuleAddress(name).String()] = true
+	}
+	app.BankKeeper = bankkeeper.NewBaseKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[banktypes.StoreKey]),
+		app.AccountKeeper,
+		blockedAddrs,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		logger,
+	)
+
+	// ── StakingKeeper ────────────────────────────────────────────────────────
+	app.StakingKeeper = stakingkeeper.NewKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[stakingtypes.StoreKey]),
+		app.AccountKeeper,
+		app.BankKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		address.NewBech32Codec("steroidvaloper"),
+		address.NewBech32Codec("steroidvalcons"),
+	)
+
+	// ── DistrKeeper ──────────────────────────────────────────────────────────
+	app.DistrKeeper = distrkeeper.NewKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[distrtypes.StoreKey]),
+		app.AccountKeeper,
+		app.BankKeeper,
+		app.StakingKeeper,
+		authtypes.FeeCollectorName,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
+
+	// ── SlashingKeeper ───────────────────────────────────────────────────────
+	app.SlashingKeeper = slashingkeeper.NewKeeper(
+		app.cdc,
+		app.amino,
+		runtime.NewKVStoreService(app.keys[slashingtypes.StoreKey]),
+		app.StakingKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
+
+	// ── CrisisKeeper ─────────────────────────────────────────────────────────
+	app.CrisisKeeper = crisiskeeper.NewKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[crisistypes.StoreKey]),
+		1, // invCheckPeriod — every block during v1 dev; tune for production
+		app.BankKeeper,
+		authtypes.FeeCollectorName,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		address.NewBech32Codec("steroid"),
+	)
+
+	// ── MintKeeper ───────────────────────────────────────────────────────────
+	app.MintKeeper = mintkeeper.NewKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[minttypes.StoreKey]),
+		app.StakingKeeper,
+		app.AccountKeeper,
+		app.BankKeeper,
+		authtypes.FeeCollectorName,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
+
+	// ── GovKeeper ────────────────────────────────────────────────────────────
+	app.GovKeeper = govkeeper.NewKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[govtypes.StoreKey]),
+		app.AccountKeeper,
+		app.BankKeeper,
+		app.StakingKeeper,
+		app.DistrKeeper,
+		bApp.MsgServiceRouter(),
+		govtypes.DefaultConfig(),
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
+	govRouter := govv1beta1.NewRouter()
+	govRouter.
+		AddRoute(govtypes.RouterKey, govv1beta1.ProposalHandler).
+		AddRoute(paramproposal.RouterKey, params.NewParamChangeProposalHandler(app.ParamsKeeper))
+	app.GovKeeper.SetLegacyRouter(govRouter)
+
+	// ── Staking hooks — must be set after DistrKeeper + SlashingKeeper ───────
+	app.StakingKeeper.SetHooks(
+		stakingtypes.NewMultiStakingHooks(
+			app.DistrKeeper.Hooks(),
+			app.SlashingKeeper.Hooks(),
+		),
+	)
 
 	// TODO(D1a): after keepers are wired, register VRF proposer rotation:
 	//   bApp.SetPrepareProposal(vrfprepare.Handler(app.StakingKeeper, ...))
 	//   bApp.SetProcessProposal(vrfprocess.Handler(app.StakingKeeper, ...))
 
+	// ── Module manager ───────────────────────────────────────────────────────
+	app.ModuleManager = module.NewManager(
+		genutil.NewAppModule(
+			app.AccountKeeper, app.StakingKeeper, app,
+			encodingConfig.TxConfig,
+		),
+		auth.NewAppModule(app.cdc, app.AccountKeeper, nil, app.GetSubspace(authtypes.ModuleName)),
+		bank.NewAppModule(app.cdc, app.BankKeeper, app.AccountKeeper, app.GetSubspace(banktypes.ModuleName)),
+		staking.NewAppModule(app.cdc, app.StakingKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(stakingtypes.ModuleName)),
+		distr.NewAppModule(app.cdc, app.DistrKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(distrtypes.ModuleName)),
+		slashing.NewAppModule(app.cdc, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(slashingtypes.ModuleName), app.interfaceRegistry),
+		crisis.NewAppModule(app.CrisisKeeper, false, app.GetSubspace(crisistypes.ModuleName)),
+		mint.NewAppModule(app.cdc, app.MintKeeper, app.AccountKeeper, nil, app.GetSubspace(minttypes.ModuleName)),
+		gov.NewAppModule(app.cdc, app.GovKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(govtypes.ModuleName)),
+		params.NewAppModule(app.ParamsKeeper),
+	)
+
+	// Module execution ordering. Canonical v1 set ordering from Cosmos SDK.
+	app.ModuleManager.SetOrderBeginBlockers(
+		minttypes.ModuleName,
+		distrtypes.ModuleName,
+		slashingtypes.ModuleName,
+		stakingtypes.ModuleName,
+		govtypes.ModuleName,
+		crisistypes.ModuleName,
+		genutiltypes.ModuleName,
+		authtypes.ModuleName,
+		banktypes.ModuleName,
+		paramstypes.ModuleName,
+	)
+	app.ModuleManager.SetOrderEndBlockers(
+		crisistypes.ModuleName,
+		govtypes.ModuleName,
+		stakingtypes.ModuleName,
+		genutiltypes.ModuleName,
+		authtypes.ModuleName,
+		banktypes.ModuleName,
+		distrtypes.ModuleName,
+		slashingtypes.ModuleName,
+		minttypes.ModuleName,
+		paramstypes.ModuleName,
+	)
+	// auth must be first so accounts exist before any other module reads balances.
+	// staking must precede slashing (slashing reads validator state set by staking).
+	// genutil must be last: processes genesis txs after all modules are initialised.
+	app.ModuleManager.SetOrderInitGenesis(
+		authtypes.ModuleName,
+		banktypes.ModuleName,
+		distrtypes.ModuleName,
+		stakingtypes.ModuleName,
+		slashingtypes.ModuleName,
+		govtypes.ModuleName,
+		minttypes.ModuleName,
+		crisistypes.ModuleName,
+		paramstypes.ModuleName,
+		genutiltypes.ModuleName,
+	)
+
+	// ── Register module services (GRPC msg + query routes) ───────────────────
+	app.configurator = module.NewConfigurator(app.cdc, bApp.MsgServiceRouter(), bApp.GRPCQueryRouter())
+	if err := app.ModuleManager.RegisterServices(app.configurator); err != nil {
+		panic(err)
+	}
+
+	// ── Register module invariants ────────────────────────────────────────────
+	app.ModuleManager.RegisterInvariants(app.CrisisKeeper)
+
+	// ── AnteHandler ──────────────────────────────────────────────────────────
+	anteHandler, err := ante.NewAnteHandler(ante.HandlerOptions{
+		AccountKeeper:   app.AccountKeeper,
+		BankKeeper:      app.BankKeeper,
+		SignModeHandler: encodingConfig.TxConfig.SignModeHandler(),
+		SigGasConsumer:  ante.DefaultSigVerificationGasConsumer,
+	})
+	if err != nil {
+		panic(err)
+	}
+	bApp.SetAnteHandler(anteHandler)
+
 	// ── Store mounting ────────────────────────────────────────────────────────
 	app.MountKVStores(app.keys)
 	app.MountTransientStores(app.tkeys)
-
-	app.ModuleManager = module.NewManager()
 
 	if loadLatest {
 		if err := app.LoadLatestVersion(); err != nil {
@@ -323,9 +510,3 @@ func initParamsKeeper(
 
 	return pk
 }
-
-// Suppress lint for packages used only in type declarations or var blocks.
-var (
-	_ = govv1beta1.NewMsgVote
-	_ = maccPerms
-)

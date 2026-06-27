@@ -11,6 +11,8 @@ import (
 
 	dbm "github.com/cosmos/cosmos-db"
 
+	cmtcfg "github.com/cometbft/cometbft/config"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	clientconfig "github.com/cosmos/cosmos-sdk/client/config"
 	"github.com/cosmos/cosmos-sdk/client/debug"
@@ -56,8 +58,7 @@ func NewRootCmd() *cobra.Command {
 			if err := client.SetCmdClientContextHandler(initClientCtx, cmd); err != nil {
 				return err
 			}
-			// nil cmtConfig = use SDK defaults.
-			return server.InterceptConfigsPreRunHandler(cmd, "", nil, nil)
+			return server.InterceptConfigsPreRunHandler(cmd, "", nil, cmtcfg.DefaultConfig())
 		},
 	}
 
