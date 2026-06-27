@@ -11,6 +11,8 @@ import (
 
 	dbm "github.com/cosmos/cosmos-db"
 
+	cmtcfg "github.com/cometbft/cometbft/config"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	clientconfig "github.com/cosmos/cosmos-sdk/client/config"
 	"github.com/cosmos/cosmos-sdk/client/debug"
@@ -18,12 +20,13 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/keys"
 	"github.com/cosmos/cosmos-sdk/client/pruning"
 	"github.com/cosmos/cosmos-sdk/client/snapshot"
-	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/server"
+	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
+	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
 	"github.com/beepxtra/steroid-core4.0/app"
 )
@@ -56,23 +59,19 @@ func NewRootCmd() *cobra.Command {
 			if err := client.SetCmdClientContextHandler(initClientCtx, cmd); err != nil {
 				return err
 			}
-			// nil cmtConfig = use SDK defaults.
-			return server.InterceptConfigsPreRunHandler(cmd, "", nil, nil)
+			return server.InterceptConfigsPreRunHandler(cmd, "", nil, cmtcfg.DefaultConfig())
 		},
 	}
 
-	// TODO(D3): replace bech32 with base58 address prefix once the custom
-	// address codec is implemented (see app/codec.go).
-	sdkCfg := sdk.GetConfig()
-	sdkCfg.SetBech32PrefixForAccount("steroid", "steroidpub")
-	sdkCfg.SetBech32PrefixForValidator("steroidvaloper", "steroidvaloperpub")
-	sdkCfg.SetBech32PrefixForConsensusNode("steroidvalcons", "steroidvalconspub")
+	// D3: base58 addresses — no bech32 prefix configuration needed.
+	// The sdk.Config bech32 prefixes are unused; our address.Codec handles
+	// all string ↔ bytes conversion.
 
-	initRootCmd(rootCmd)
+	initRootCmd(rootCmd, encodingConfig.TxConfig)
 	return rootCmd
 }
 
-func initRootCmd(rootCmd *cobra.Command) {
+func initRootCmd(rootCmd *cobra.Command, txConfig client.TxConfig) {
 	rootCmd.AddCommand(
 		genutilcli.InitCmd(app.ModuleBasics, app.DefaultNodeHome),
 		debug.Cmd(),
@@ -85,7 +84,20 @@ func initRootCmd(rootCmd *cobra.Command) {
 	rootCmd.AddCommand(
 		server.StatusCommand(),
 		genutilcli.ValidateGenesisCmd(app.ModuleBasics),
-		genutilcli.AddGenesisAccountCmd(app.DefaultNodeHome, address.NewBech32Codec("steroid")),
+		genutilcli.AddGenesisAccountCmd(app.DefaultNodeHome, steroidaddress.Codec{}),
+		genutilcli.GenTxCmd(
+			app.ModuleBasics,
+			txConfig,
+			banktypes.GenesisBalancesIterator{},
+			app.DefaultNodeHome,
+			steroidaddress.Codec{},
+		),
+		genutilcli.CollectGenTxsCmd(
+			banktypes.GenesisBalancesIterator{},
+			app.DefaultNodeHome,
+			genutiltypes.DefaultMessageValidator,
+			steroidaddress.Codec{},
+		),
 		keys.Commands(),
 	)
 
