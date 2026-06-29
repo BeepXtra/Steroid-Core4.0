@@ -1,3 +1,8 @@
+> **The next-generation Go/Cosmos SDK core is being built on [`lars/rebuild`](../../tree/lars/rebuild).**  
+> Full architecture spec: [`docs/FUTURE-ARCHITECTURE.md`](../../blob/lars/rebuild/docs/FUTURE-ARCHITECTURE.md)
+
+---
+
 # node
 
 The Steroid4.0 (BPC) masternode testnet.
