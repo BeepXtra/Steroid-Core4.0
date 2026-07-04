@@ -30,6 +30,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/runtime"
 
 	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
+	cmtservice "github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
+	nodeservice "github.com/cosmos/cosmos-sdk/client/grpc/node"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
@@ -37,8 +39,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/version"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
-	cmtservice "github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
-	nodeservice "github.com/cosmos/cosmos-sdk/client/grpc/node"
 
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/auth/ante"
@@ -88,6 +88,10 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/consensus"
 	consensuskeeper "github.com/cosmos/cosmos-sdk/x/consensus/keeper"
 	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
+
+	vrfmodule "github.com/beepxtra/steroid-core4.0/x/vrf"
+	vrfkeeper "github.com/beepxtra/steroid-core4.0/x/vrf/keeper"
+	vrftypes "github.com/beepxtra/steroid-core4.0/x/vrf/types"
 )
 
 const Name = "steroid"
@@ -120,6 +124,7 @@ var ModuleBasics = module.NewBasicManager(
 	crisis.AppModuleBasic{},
 	consensus.AppModuleBasic{},
 	genutil.NewAppModuleBasic(genutiltypes.DefaultMessageValidator),
+	vrfmodule.AppModuleBasic{},
 )
 
 // App is the Steroid blockchain application.
@@ -136,18 +141,20 @@ type App struct {
 
 	// ── Core SDK module keepers (v1 set) ─────────────────────────────────────
 
-	AccountKeeper  authkeeper.AccountKeeper
-	BankKeeper     bankkeeper.BaseKeeper
-	StakingKeeper  *stakingkeeper.Keeper
-	GovKeeper      *govkeeper.Keeper
-	DistrKeeper    distrkeeper.Keeper
-	SlashingKeeper slashingkeeper.Keeper
-	MintKeeper     mintkeeper.Keeper
-	ParamsKeeper        paramskeeper.Keeper
-	CrisisKeeper        *crisiskeeper.Keeper
+	AccountKeeper        authkeeper.AccountKeeper
+	BankKeeper           bankkeeper.BaseKeeper
+	StakingKeeper        *stakingkeeper.Keeper
+	GovKeeper            *govkeeper.Keeper
+	DistrKeeper          distrkeeper.Keeper
+	SlashingKeeper       slashingkeeper.Keeper
+	MintKeeper           mintkeeper.Keeper
+	ParamsKeeper         paramskeeper.Keeper
+	CrisisKeeper         *crisiskeeper.Keeper
 	ConsensusParamKeeper consensuskeeper.Keeper
 
-	// ── Custom module keepers (v2 set — added per workplan spec) ─────────────
+	// ── Custom module keepers ─────────────────────────────────────────────────
+	VRFKeeper vrfkeeper.Keeper // D1a — validator VRF key registration (Decision 2)
+
 	// TODO(D5): AssetsKeeper assetskeeper.Keeper
 	// TODO(D5): AliasKeeper  aliaskeeper.Keeper
 
@@ -209,6 +216,7 @@ func New(
 		paramstypes.StoreKey,
 		crisistypes.StoreKey,
 		consensusparamtypes.StoreKey,
+		vrftypes.StoreKey,
 	)
 	app.tkeys = storetypes.NewTransientStoreKeys(paramstypes.TStoreKey)
 
@@ -326,6 +334,13 @@ func New(
 	)
 	bApp.SetParamStore(app.ConsensusParamKeeper.ParamsStore)
 
+	// ── VRFKeeper — D1a validator VRF key registration (Decision 2) ─────────
+	app.VRFKeeper = vrfkeeper.NewKeeper(
+		app.cdc,
+		runtime.NewKVStoreService(app.keys[vrftypes.StoreKey]),
+		steroidaddress.Codec{}, // D3: validator operator addresses
+	)
+
 	// ── Staking hooks — must be set after DistrKeeper + SlashingKeeper ───────
 	app.StakingKeeper.SetHooks(
 		stakingtypes.NewMultiStakingHooks(
@@ -354,6 +369,7 @@ func New(
 		gov.NewAppModule(app.cdc, app.GovKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(govtypes.ModuleName)),
 		params.NewAppModule(app.ParamsKeeper),
 		consensus.NewAppModule(app.cdc, app.ConsensusParamKeeper),
+		vrfmodule.NewAppModule(app.cdc, app.VRFKeeper),
 	)
 
 	// Module execution ordering. Canonical v1 set ordering from Cosmos SDK.
@@ -397,6 +413,7 @@ func New(
 		crisistypes.ModuleName,
 		paramstypes.ModuleName,
 		consensusparamtypes.ModuleName,
+		vrftypes.ModuleName,
 		genutiltypes.ModuleName,
 	)
 

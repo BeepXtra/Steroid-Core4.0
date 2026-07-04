@@ -1,0 +1,21 @@
+syntax = "proto3";
+package steroid.vrf.v1;
+
+option go_package = "github.com/beepxtra/steroid-core4.0/x/vrf/types";
+
+import "cosmos_proto/cosmos.proto";
+
+// ValidatorVRFKey is the on-chain record binding a validator to its
+// registered ECVRF-EDWARDS25519-SHA512-TAI public key (D1a, Decision 2).
+message ValidatorVRFKey {
+  // validator_address is the bech32/base58-encoded operator address of the
+  // validator this VRF key belongs to.
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.ValidatorAddressString"];
+
+  // vrf_pub_key is the raw 32-byte ECVRF-EDWARDS25519-SHA512-TAI public key.
+  bytes vrf_pub_key = 2;
+
+  // registered_at_height is the block height at which this key (or its most
+  // recent rotation) was registered.
+  int64 registered_at_height = 3;
+}

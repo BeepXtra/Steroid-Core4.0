@@ -1,0 +1,24 @@
+syntax = "proto3";
+package steroid.vrf.v1;
+
+option go_package = "github.com/beepxtra/steroid-core4.0/x/vrf/types";
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "steroid/vrf/v1/types.proto";
+
+// Query defines the x/vrf gRPC query service.
+service Query {
+  // ValidatorVRFKey returns the registered VRF key for a given validator, if any.
+  rpc ValidatorVRFKey(QueryValidatorVRFKeyRequest) returns (QueryValidatorVRFKeyResponse) {
+    option (google.api.http).get = "/steroid/vrf/v1/validator_vrf_keys/{validator_address}";
+  }
+}
+
+message QueryValidatorVRFKeyRequest {
+  string validator_address = 1;
+}
+
+message QueryValidatorVRFKeyResponse {
+  ValidatorVRFKey validator_vrf_key = 1 [(gogoproto.nullable) = false];
+}

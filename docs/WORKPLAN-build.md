@@ -26,6 +26,67 @@
 
 ---
 
+## [DONE] — D1a VRF key registration + seed function (proposer enforcement not yet built)
+
+Implements the registration/seed half of D1a per the resolved implementation
+spec (see `docs/FUTURE-ARCHITECTURE.md` §6 D1a): the on-chain VRF key registry
+and the standalone seed-computation function. Proposer-side proof generation
+and `ProcessProposal` enforcement are a separate, later piece.
+
+### Files built / modified
+
+| File | Change |
+|------|--------|
+| `proto/steroid/vrf/v1/*.proto` | `ValidatorVRFKey` state, `MsgRegisterVRFKey` tx, genesis, query definitions |
+| `proto/{cosmos_proto,cosmos/msg/v1,gogoproto,google/api}/*.proto` | Vendored third-party proto deps (no BSR/network dependency for codegen) |
+| `proto/buf.yaml` / `proto/buf.gen.yaml` | buf + `protoc-gen-gocosmos` config, mapping `google/api/*` to the existing `gogo/googleapis` Go package |
+| `scripts/protocgen.sh` | Reproducible codegen: installs buf/gocosmos if missing, runs `buf generate`, relocates output |
+| `Makefile` | `proto` target now runs `scripts/protocgen.sh` (was a stub) |
+| `x/vrf/types/` | Generated pb.go + hand-written `keys.go`, `errors.go`, `msgs.go` (`ValidateBasic`), `genesis.go` (`DefaultGenesis`/`Validate`), `codec.go` |
+| `x/vrf/keeper/` | `Keeper` (collections-based validator-address → VRF-key map), `msg_server.go`, `grpc_query.go`, `genesis.go` |
+| `x/vrf/module.go` | `AppModuleBasic`/`AppModule` wiring (genesis, services, consensus version) |
+| `x/vrf/seed/seed.go` | Standalone `ComputeSeed`/`ComputeTxAccumulator` implementing Decision 3 exactly (empty-block case is the running hash's zero-iteration base case, not a special branch) |
+| `app/app.go` | `x/vrf` store key, keeper construction, module manager registration, init-genesis ordering |
+| `go.mod` | Added `github.com/ProtonMail/go-ecvrf` (ECVRF-EDWARDS25519-SHA512-TAI, RFC 9381) |
+
+### Library selection note
+
+Two other ed25519 VRF libraries were evaluated and rejected before landing on
+`ProtonMail/go-ecvrf`: `vechain/go-ecvrf` only implements secp256k1/P256 (wrong
+curve entirely), and `yoseplee/vrf` predates the finalized RFC 9381 with no
+compliance test vectors of its own. `ProtonMail/go-ecvrf` was verified against
+the RFC's own Appendix A.3 test vectors (key generation, hash-to-curve, nonce
+generation, prove, verify) before adoption.
+
+Also found during implementation: `ecvrf.NewPublicKey` never validates its
+input — it stores raw bytes unconditionally. `ValidateBasic`/genesis
+`Validate` do real curve-point validation via `filippo.io/edwards25519`
+instead, so a malformed key is rejected at registration time rather than only
+failing later inside proposer verification.
+
+### What works now
+
+- `go build ./...`, `go vet ./...` — clean
+- `go test ./x/vrf/...` — all unit tests pass (keeper CRUD + rotation + genesis round-trip, `ValidateBasic`/genesis `Validate` edge cases, seed function known-answer + order-sensitivity + replay-prevention tests against independently-computed SHA-256 fixtures)
+- `make build` + `scripts/devnet-setup.sh` + `stereodd start` — node still starts and produces blocks with `x/vrf` wired into the module manager (blocks 1–4 finalized, all crisis invariants passing)
+
+### Known limitations / not yet done
+
+- Proposer-side VRF proof generation — not started; needs a VRF privkey file alongside `priv_validator_key.json`
+- `ProcessProposal` verification enforcing the direct-index winner — not started
+- No cooldown on key rotation (spec flagged this as a "consider," not a requirement — a second `MsgRegisterVRFKey` overwrites immediately)
+- REST gateway routes for `x/vrf` queries — not registered (gRPC/CLI only for now)
+
+### Next tasks (priority order)
+
+1. **D1a — proposer VRF proof generation + `ProcessProposal` enforcement**: the direct-index winner function (bounded to next-K round-robin candidates) and the actual consensus-layer wiring. Consensus-critical — needs careful review before merge.
+2. **D4 — Emission curve**: Replace default `x/mint` params with the Steroid emission schedule. G4L1L3O to specify.
+3. **D10 — S4QL migration tool**: Blocking for M1 cutover.
+4. **D5 — x/assets + x/alias**: Spec from G4L1L3O first.
+5. **D7 — REST gateway**: Map `doc/` apidoc endpoints → new core handlers.
+
+---
+
 ## [DONE] — v1 Keeper Init + D3 Base58 Codec + Devnet (completed 2026-06-27, claude/keeper-init-wiring → lars/rebuild)
 
 ### Files built / modified
@@ -53,7 +114,7 @@
 
 - `keys show` displays `cosmos1...` bech32 addresses — SDK v0.50 `client.Context` doesn't expose `WithAddressCodec`; address output is cosmetic only, chain state uses base58 internally
 - `stereodd genesis export` — untested (should work; all modules registered with `ExportGenesis`)
-- VRF proposer rotation (D1a) — not started; standard CometBFT round-robin in use
+- VRF proposer rotation (D1a) — key registration + seed function done (see the D1a entry above); proposer-side proof generation and `ProcessProposal` enforcement not yet built, standard CometBFT round-robin still in use for now
 - Emission curve (D4) — not started; default SDK mint params in use
 - x/assets + x/alias (D5) — not started; v2 scope
 - S4QL → genesis migration tool (D10) — not started

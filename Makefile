@@ -39,7 +39,7 @@ mod-tidy:
 ## proto: generate protobuf bindings
 ## TODO: add buf generate once proto/ definitions are in place
 proto:
-	@echo "Proto generation is not yet configured (see proto/ directory)."
+	./scripts/protocgen.sh
 
 ## clean: remove build artefacts
 clean:

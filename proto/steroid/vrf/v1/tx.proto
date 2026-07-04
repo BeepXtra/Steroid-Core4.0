@@ -1,0 +1,33 @@
+syntax = "proto3";
+package steroid.vrf.v1;
+
+option go_package = "github.com/beepxtra/steroid-core4.0/x/vrf/types";
+
+import "cosmos_proto/cosmos.proto";
+import "cosmos/msg/v1/msg.proto";
+
+// Msg defines the x/vrf Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // RegisterVRFKey registers (or rotates) the calling validator's VRF public
+  // key (D1a, Decision 2). A validator with no registered key is skipped
+  // during proposer selection.
+  rpc RegisterVRFKey(MsgRegisterVRFKey) returns (MsgRegisterVRFKeyResponse);
+}
+
+// MsgRegisterVRFKey registers a validator's ECVRF-EDWARDS25519-SHA512-TAI
+// public key on-chain. A second call from the same validator overwrites the
+// existing entry (key rotation).
+message MsgRegisterVRFKey {
+  option (cosmos.msg.v1.signer) = "validator_address";
+
+  // validator_address is the operator address of the registering validator.
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.ValidatorAddressString"];
+
+  // vrf_pub_key is the raw 32-byte ECVRF-EDWARDS25519-SHA512-TAI public key.
+  bytes vrf_pub_key = 2;
+}
+
+// MsgRegisterVRFKeyResponse is the Msg/RegisterVRFKey response type.
+message MsgRegisterVRFKeyResponse {}

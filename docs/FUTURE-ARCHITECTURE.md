@@ -251,6 +251,33 @@ everyday user transactions feed entropy into the beacon.
 - **Randomness from usage:** user transactions feed the VRF beacon.
 - **Excluded:** consumer-phone compute, storage/CDN, hashrate.
 
+**D1a implementation spec (resolved):**
+- **VRF algorithm:** ECVRF-EDWARDS25519-SHA512-TAI (RFC 9381), via
+  `github.com/ProtonMail/go-ecvrf` — verified against the RFC's own Appendix
+  A.3 test vectors before adoption (two other ed25519 VRF libraries were
+  evaluated and rejected: one implements the wrong curve entirely, the other
+  predates the finalized RFC with no compliance test vectors of its own).
+- **VRF key:** a separate keypair per validator, registered on-chain via
+  `MsgRegisterVRFKey` (`x/vrf` module); a second registration from the same
+  validator rotates the key. A validator with no registered key is skipped
+  from proposer selection.
+- **Seed construction:** `SHA256(prev_vrf_output || block_height ||
+  tx_accumulator_hash)`, where `tx_accumulator_hash` is a running SHA-256 over
+  the previous block's tx hashes in order; the empty-block case
+  (`SHA256([]byte{})`) falls out of the running hash's zero-iteration base
+  case rather than needing a special branch.
+- **Winner selection:** direct index pick — the seed alone deterministically
+  selects one winner index into the validator set; the VRF proof establishes
+  that validator's identity/eligibility rather than "winning" a comparison
+  against other candidates' outputs.
+- **Round-latency bound:** VRF selection is constrained to the next-K
+  candidates in CometBFT's existing round-robin order, so a rejected
+  `ProcessProposal` cannot cascade through the full validator set before
+  landing on the true winner.
+- **Status:** `x/vrf` module (key registration, keeper, genesis) and the
+  seed-computation function are implemented and unit-tested. Proposer-side
+  proof generation and `ProcessProposal` enforcement are not yet built.
+
 ### D2 — Throughput & scaling strategy
 **One high-throughput chain (v1/v2).**
 - **Parallel/optimistic execution** (transactions touching disjoint accounts run

@@ -1,0 +1,11 @@
+syntax = "proto3";
+package steroid.vrf.v1;
+
+option go_package = "github.com/beepxtra/steroid-core4.0/x/vrf/types";
+
+import "steroid/vrf/v1/types.proto";
+
+// GenesisState defines the x/vrf module's genesis state.
+message GenesisState {
+  repeated ValidatorVRFKey validator_vrf_keys = 1;
+}
