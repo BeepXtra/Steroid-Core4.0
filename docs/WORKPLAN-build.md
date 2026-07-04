@@ -26,12 +26,13 @@
 
 ---
 
-## [DONE] — D1a VRF key registration + seed function (proposer enforcement not yet built)
+## [DONE] — D1a VRF key registration + seed + winner selection (consensus wiring BLOCKED)
 
-Implements the registration/seed half of D1a per the resolved implementation
-spec (see `docs/FUTURE-ARCHITECTURE.md` §6 D1a): the on-chain VRF key registry
-and the standalone seed-computation function. Proposer-side proof generation
-and `ProcessProposal` enforcement are a separate, later piece.
+Implements every pure/standalone piece of D1a per the resolved implementation
+spec (see `docs/FUTURE-ARCHITECTURE.md` §6 D1a): the on-chain VRF key
+registry, seed computation, winner selection, and VRF prove/verify. Wiring
+these into `ProcessProposal`/`PrepareProposal` is **not a follow-up task, it's
+a blocked design question** — see below.
 
 ### Files built / modified
 
@@ -46,6 +47,8 @@ and `ProcessProposal` enforcement are a separate, later piece.
 | `x/vrf/keeper/` | `Keeper` (collections-based validator-address → VRF-key map), `msg_server.go`, `grpc_query.go`, `genesis.go` |
 | `x/vrf/module.go` | `AppModuleBasic`/`AppModule` wiring (genesis, services, consensus version) |
 | `x/vrf/seed/seed.go` | Standalone `ComputeSeed`/`ComputeTxAccumulator` implementing Decision 3 exactly (empty-block case is the running hash's zero-iteration base case, not a special branch) |
+| `x/vrf/proposer/winner.go` | `SelectWinner` — Decision 1b's direct-index pick, pure function over a seed + canonically-ordered candidate list |
+| `x/vrf/proposer/prove.go` | `Prove`/`Verify` wrapping `ProtonMail/go-ecvrf`, re-validated against the RFC 9381 A.3 vector through our own wrapper (not just the upstream library's own tests) |
 | `app/app.go` | `x/vrf` store key, keeper construction, module manager registration, init-genesis ordering |
 | `go.mod` | Added `github.com/ProtonMail/go-ecvrf` (ECVRF-EDWARDS25519-SHA512-TAI, RFC 9381) |
 
@@ -67,19 +70,48 @@ failing later inside proposer verification.
 ### What works now
 
 - `go build ./...`, `go vet ./...` — clean
-- `go test ./x/vrf/...` — all unit tests pass (keeper CRUD + rotation + genesis round-trip, `ValidateBasic`/genesis `Validate` edge cases, seed function known-answer + order-sensitivity + replay-prevention tests against independently-computed SHA-256 fixtures)
+- `go test ./x/vrf/...` — all unit tests pass (keeper CRUD + rotation + genesis round-trip, `ValidateBasic`/genesis `Validate` edge cases, seed function known-answer + order-sensitivity + replay-prevention tests against independently-computed SHA-256 fixtures, winner-selection determinism, VRF prove/verify round-trip + the RFC vector re-checked through our own wrapper)
 - `make build` + `scripts/devnet-setup.sh` + `stereodd start` — node still starts and produces blocks with `x/vrf` wired into the module manager (blocks 1–4 finalized, all crisis invariants passing)
+
+### BLOCKED — consensus wiring (`ProcessProposal`/`PrepareProposal`)
+
+Found while implementing, not before: CometBFT v0.38's ABCI gives the app no
+visibility into which round it's currently validating
+(`RequestProcessProposal`/`RequestPrepareProposal` have no `Round` field), and
+Cosmos SDK's `baseapp` resets all app-side state on *every* `ProcessProposal`/
+`PrepareProposal` call — confirmed directly in `baseapp/abci.go` ("Always
+reset state given that ProcessProposal can timeout and be called again in a
+subsequent round"). Consequences:
+
+- **Decision 2a (bounded round-cycling) cannot be built safely.** Any
+  cross-round rejection counter would have to live in local, per-validator
+  memory, and different validators would compute different counts depending
+  on their own local timeout timing — the kind of non-determinism that forks
+  a BFT chain.
+- **The unbounded fallback (Decision 4's literal text) is a liveness bug on
+  its own**, not just a latency cost: reject every non-winning proposer with
+  no fallback, and an offline/crashed/byzantine winning validator **halts the
+  chain at that height with no recovery path**.
+
+This needs a real design decision from G4L1L3O before any `ProcessProposal`
+rejection logic is written — see `docs/FUTURE-ARCHITECTURE.md` D1a for the
+three options sketched (deterministic time-based fallback / a CometBFT
+version-or-ABCI-extension that exposes round number safely / a different
+consensus mechanism entirely). Not a quick fix.
 
 ### Known limitations / not yet done
 
-- Proposer-side VRF proof generation — not started; needs a VRF privkey file alongside `priv_validator_key.json`
-- `ProcessProposal` verification enforcing the direct-index winner — not started
+- Proposer-side VRF proof generation is a working *library function*
+  (`x/vrf/proposer.Prove`) but isn't wired to run automatically on a node —
+  needs a VRF privkey file alongside `priv_validator_key.json` and a call site
+  once the blocker above is resolved
+- `ProcessProposal` verification enforcing the direct-index winner — blocked, see above
 - No cooldown on key rotation (spec flagged this as a "consider," not a requirement — a second `MsgRegisterVRFKey` overwrites immediately)
 - REST gateway routes for `x/vrf` queries — not registered (gRPC/CLI only for now)
 
 ### Next tasks (priority order)
 
-1. **D1a — proposer VRF proof generation + `ProcessProposal` enforcement**: the direct-index winner function (bounded to next-K round-robin candidates) and the actual consensus-layer wiring. Consensus-critical — needs careful review before merge.
+1. **D1a — resolve the ProcessProposal/liveness blocker above.** G4L1L3O design decision required before any more code lands here.
 2. **D4 — Emission curve**: Replace default `x/mint` params with the Steroid emission schedule. G4L1L3O to specify.
 3. **D10 — S4QL migration tool**: Blocking for M1 cutover.
 4. **D5 — x/assets + x/alias**: Spec from G4L1L3O first.

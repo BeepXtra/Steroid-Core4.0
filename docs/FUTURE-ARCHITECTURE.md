@@ -274,9 +274,38 @@ everyday user transactions feed entropy into the beacon.
   candidates in CometBFT's existing round-robin order, so a rejected
   `ProcessProposal` cannot cascade through the full validator set before
   landing on the true winner.
-- **Status:** `x/vrf` module (key registration, keeper, genesis) and the
-  seed-computation function are implemented and unit-tested. Proposer-side
-  proof generation and `ProcessProposal` enforcement are not yet built.
+- **Status:** `x/vrf` module (key registration, keeper, genesis), the
+  seed-computation function, the winner-selection function, and the VRF
+  prove/verify wrapper are implemented and unit-tested.
+  `ProcessProposal`/`PrepareProposal` consensus wiring is **blocked** — see
+  below, this is not a "not yet built," it's a real open problem.
+
+**Blocker found during implementation — liveness risk, needs a decision
+before any consensus wiring lands:**
+CometBFT v0.38's ABCI gives the app no visibility into which round it is
+currently validating (`RequestProcessProposal`/`RequestPrepareProposal` carry
+no `Round` field), and Cosmos SDK's `baseapp` explicitly resets all app-side
+state on every `ProcessProposal`/`PrepareProposal` call ("Always reset state
+given that ProcessProposal can timeout and be called again in a subsequent
+round" — `baseapp/abci.go`). Consequences:
+- Decision 2a's "bound rejection to the next-K round-robin candidates" cannot
+  be built safely: any cross-round counter would have to live in local,
+  per-validator in-memory state, and different validators would compute
+  different counts depending on their own timeout/network timing — exactly
+  the non-determinism that forks a BFT chain.
+- Worse, the *unbounded* version (Decision 4's literal text: reject every
+  proposer who isn't the seed-selected winner, let CometBFT cycle forever)
+  is a liveness bug on its own: if the winning validator for a height is
+  offline, crashed, or byzantine, every other validator gets rejected too and
+  **the chain halts at that height with no recovery path**.
+- Options: (a) accept this risk is unacceptable and design an explicit,
+  deterministic fallback rule that depends only on committed chain state
+  (not local round-counting) — e.g., triggered by elapsed block time rather
+  than rejected-round count; (b) find a CometBFT version/ABCI extension that
+  exposes round number safely to the app; (c) a different consensus-layer
+  mechanism entirely (committee/threshold-based single-round selection).
+  None of these is a quick fix — this needs G4L1L3O's design input before
+  any `ProcessProposal` rejection logic is written.
 
 ### D2 — Throughput & scaling strategy
 **One high-throughput chain (v1/v2).**
