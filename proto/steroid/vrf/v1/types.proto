@@ -19,3 +19,18 @@ message ValidatorVRFKey {
   // recent rotation) was registered.
   int64 registered_at_height = 3;
 }
+
+// VRFProposalProof is the proposer-attached VRF proof for a height,
+// implementing D1a Decision 4. It is not a user transaction: the proposer
+// (as picked by CometBFT's own round-robin) injects it as the block's first
+// entry so every validator's ProcessProposal can verify, from the block
+// alone, whether this proposer is the seed-selected winner (Decision 1b) —
+// or, if the fallback window has elapsed (see keeper.ShouldAcceptFallback),
+// accept it anyway rather than let the chain stall on an absent winner.
+message VRFProposalProof {
+  // validator_address is the operator address of the proposer attaching this proof.
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.ValidatorAddressString"];
+
+  // proof is the ECVRF-EDWARDS25519-SHA512-TAI proof over the height's seed.
+  bytes proof = 2;
+}

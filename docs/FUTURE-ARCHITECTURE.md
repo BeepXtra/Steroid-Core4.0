@@ -270,42 +270,41 @@ everyday user transactions feed entropy into the beacon.
   selects one winner index into the validator set; the VRF proof establishes
   that validator's identity/eligibility rather than "winning" a comparison
   against other candidates' outputs.
-- **Round-latency bound:** VRF selection is constrained to the next-K
-  candidates in CometBFT's existing round-robin order, so a rejected
-  `ProcessProposal` cannot cascade through the full validator set before
-  landing on the true winner.
-- **Status:** `x/vrf` module (key registration, keeper, genesis), the
-  seed-computation function, the winner-selection function, and the VRF
-  prove/verify wrapper are implemented and unit-tested.
-  `ProcessProposal`/`PrepareProposal` consensus wiring is **blocked** — see
-  below, this is not a "not yet built," it's a real open problem.
-
-**Blocker found during implementation — liveness risk, needs a decision
-before any consensus wiring lands:**
-CometBFT v0.38's ABCI gives the app no visibility into which round it is
-currently validating (`RequestProcessProposal`/`RequestPrepareProposal` carry
-no `Round` field), and Cosmos SDK's `baseapp` explicitly resets all app-side
-state on every `ProcessProposal`/`PrepareProposal` call ("Always reset state
-given that ProcessProposal can timeout and be called again in a subsequent
-round" — `baseapp/abci.go`). Consequences:
-- Decision 2a's "bound rejection to the next-K round-robin candidates" cannot
-  be built safely: any cross-round counter would have to live in local,
-  per-validator in-memory state, and different validators would compute
-  different counts depending on their own timeout/network timing — exactly
-  the non-determinism that forks a BFT chain.
-- Worse, the *unbounded* version (Decision 4's literal text: reject every
-  proposer who isn't the seed-selected winner, let CometBFT cycle forever)
-  is a liveness bug on its own: if the winning validator for a height is
-  offline, crashed, or byzantine, every other validator gets rejected too and
-  **the chain halts at that height with no recovery path**.
-- Options: (a) accept this risk is unacceptable and design an explicit,
-  deterministic fallback rule that depends only on committed chain state
-  (not local round-counting) — e.g., triggered by elapsed block time rather
-  than rejected-round count; (b) find a CometBFT version/ABCI extension that
-  exposes round number safely to the app; (c) a different consensus-layer
-  mechanism entirely (committee/threshold-based single-round selection).
-  None of these is a quick fix — this needs G4L1L3O's design input before
-  any `ProcessProposal` rejection logic is written.
+- **Round-latency bound — revised from "next-K round-robin candidates" to a
+  time-based fallback window.** CometBFT v0.38's ABCI gives the app no
+  visibility into which round it is currently validating
+  (`RequestProcessProposal`/`RequestPrepareProposal` carry no `Round` field),
+  and Cosmos SDK's `baseapp` resets all app-side state on *every*
+  `ProcessProposal`/`PrepareProposal` call — so a cross-round rejection
+  counter is not implementable without introducing per-validator
+  non-determinism (different validators' local timeouts would produce
+  different counts, which is how you fork a BFT chain). Implemented instead:
+  **`ShouldAcceptFallback(proposalTime, lastAcceptedTime, window)`** —
+  accept a non-winning proposer once `proposalTime` (part of the specific
+  proposal being validated, agreed via the BFT process itself) is more than
+  `window` (`vrfkeeper.DefaultFallbackWindow`, a build-time parameter, 30s
+  placeholder) past `lastAcceptedTime` (previously committed chain state).
+  Both inputs are agreed-upon, not locally observed, so every honest
+  validator evaluating the same proposal computes the same accept/reject
+  decision. This also closes the liveness hole in Decision 4's literal text
+  (reject every non-winner, forever, if the true winner never proposes) —
+  without a fallback, an offline/byzantine winning validator would halt the
+  chain at that height with no recovery path.
+- **Status: implemented end-to-end and wired into consensus.** `x/vrf`
+  module (key registration, keeper, genesis), seed computation, winner
+  selection, VRF prove/verify, the fallback-window function, `Candidates`
+  (bonded validators × registered VRF keys, via `x/staking`),
+  `EvaluateProposal` (the full accept/reject/fallback decision), and the
+  `PrepareProposal`/`ProcessProposal`/`PreBlocker` handlers are all
+  implemented, unit-tested (including the six core accept/reject/fallback
+  scenarios), and verified on a live single-validator devnet. A VRF proof is
+  carried as a magic-prefixed pseudo-tx prepended to the block rather than
+  via ABCI++ vote extensions (the more idiomatic mechanism, but a
+  materially bigger lift needing `ExtendVoteHandler`/
+  `VerifyVoteExtensionHandler` across two heights) — the cost is one benign,
+  always-failing tx-decode entry per block in the ABCI response, not a
+  correctness or determinism issue, since every validator sees identical
+  bytes. Flagged as a clean follow-up refinement, not a blocker.
 
 ### D2 — Throughput & scaling strategy
 **One high-throughput chain (v1/v2).**

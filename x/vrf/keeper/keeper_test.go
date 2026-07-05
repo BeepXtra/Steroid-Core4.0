@@ -22,22 +22,35 @@ import (
 
 func setupKeeper(t *testing.T) (keeper.Keeper, sdk.Context) {
 	t.Helper()
+	k, _, ctx := setupKeeperWithStaking(t)
+	return k, ctx
+}
+
+func setupKeeperWithStaking(t *testing.T) (keeper.Keeper, *fakeStakingKeeper, sdk.Context) {
+	t.Helper()
 	key := storetypes.NewKVStoreKey(types.StoreKey)
 	tkey := storetypes.NewTransientStoreKey("transient_test")
 	ctx := testutil.DefaultContext(key, tkey)
 
 	cdc := codec.NewProtoCodec(codectypes.NewInterfaceRegistry())
-	k := keeper.NewKeeper(cdc, runtime.NewKVStoreService(key), steroidaddress.Codec{})
-	return k, ctx
+	staking := newFakeStakingKeeper()
+	k := keeper.NewKeeper(cdc, runtime.NewKVStoreService(key), steroidaddress.Codec{}, staking)
+	return k, staking, ctx
 }
 
 func genVRFPubKey(t *testing.T) []byte {
 	t.Helper()
-	sk, err := ecvrf.GenerateKey(rand.Reader)
+	_, pk := genKeypair(t)
+	return pk
+}
+
+func genKeypair(t *testing.T) (sk, pk []byte) {
+	t.Helper()
+	priv, err := ecvrf.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-	pk, err := sk.Public()
+	pub, err := priv.Public()
 	require.NoError(t, err)
-	return pk.Bytes()
+	return priv.Bytes(), pub.Bytes()
 }
 
 // genValAddr returns a random, validly base58-encoded address string — the

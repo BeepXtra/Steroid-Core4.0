@@ -8,4 +8,18 @@ import "steroid/vrf/v1/types.proto";
 // GenesisState defines the x/vrf module's genesis state.
 message GenesisState {
   repeated ValidatorVRFKey validator_vrf_keys = 1;
+
+  // last_vrf_output is the most recent accepted proposer's VRF output
+  // (Decision 3's prev_vrf_output for the next height's seed). Empty at
+  // genesis.
+  bytes last_vrf_output = 2;
+
+  // last_tx_accumulator is the previous block's running tx-hash accumulator
+  // (Decision 3). Defaults to SHA256(empty) at genesis (the empty-block case).
+  bytes last_tx_accumulator = 3;
+
+  // last_accepted_time_unix_nano is the timestamp of the most recently
+  // accepted block, used to evaluate the fallback window (see
+  // keeper.ShouldAcceptFallback). Set to genesis time at genesis.
+  int64 last_accepted_time_unix_nano = 4;
 }

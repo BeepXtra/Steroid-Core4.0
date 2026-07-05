@@ -26,13 +26,14 @@
 
 ---
 
-## [DONE] — D1a VRF key registration + seed + winner selection (consensus wiring BLOCKED)
+## [DONE] — D1a complete: VRF proposer rotation wired into consensus
 
-Implements every pure/standalone piece of D1a per the resolved implementation
-spec (see `docs/FUTURE-ARCHITECTURE.md` §6 D1a): the on-chain VRF key
-registry, seed computation, winner selection, and VRF prove/verify. Wiring
-these into `ProcessProposal`/`PrepareProposal` is **not a follow-up task, it's
-a blocked design question** — see below.
+Implements all of D1a per the resolved implementation spec (see
+`docs/FUTURE-ARCHITECTURE.md` §6 D1a): on-chain VRF key registry, seed
+computation, winner selection, VRF prove/verify, and — resolving the
+liveness blocker found while building this (see below) — a time-based
+fallback window, wired into `PrepareProposal`/`ProcessProposal`/`PreBlocker`
+and verified on a live devnet.
 
 ### Files built / modified
 
@@ -49,7 +50,14 @@ a blocked design question** — see below.
 | `x/vrf/seed/seed.go` | Standalone `ComputeSeed`/`ComputeTxAccumulator` implementing Decision 3 exactly (empty-block case is the running hash's zero-iteration base case, not a special branch) |
 | `x/vrf/proposer/winner.go` | `SelectWinner` — Decision 1b's direct-index pick, pure function over a seed + canonically-ordered candidate list |
 | `x/vrf/proposer/prove.go` | `Prove`/`Verify` wrapping `ProtonMail/go-ecvrf`, re-validated against the RFC 9381 A.3 vector through our own wrapper (not just the upstream library's own tests) |
-| `app/app.go` | `x/vrf` store key, keeper construction, module manager registration, init-genesis ordering |
+| `x/vrf/keeper/fallback.go` | `ShouldAcceptFallback` — the deterministic, timestamp-based liveness fallback (see "Blocker resolved" below) |
+| `x/vrf/keeper/keeper.go` | `StakingKeeper` expected-keeper interface, `Candidates` (bonded validators × registered VRF keys, canonically sorted), `OperatorAddressByConsAddr`, plus `LastVRFOutput`/`LastTxAccumulator`/`LastAcceptedTimeUnixNano` state |
+| `x/vrf/keeper/abci.go` | `EncodeProofTx`/`DecodeProofTx` (magic-prefixed pseudo-tx), `EvaluateProposal` (the full accept/reject/fallback decision), `RecordAcceptedProposal` |
+| `x/vrf/keeper/handlers.go` | `PrepareProposalHandler`, `ProcessProposalHandler`, `PreBlockerHandler` — the actual ABCI wiring |
+| `app/vrfkey/vrfkey.go` | Node-local VRF private key file (`config/vrf_key.json`, 0600), generated on first start, analogous to `priv_validator_key.json` but for the separate VRF keypair (D1a Decision 2) |
+| `proto/steroid/vrf/v1/types.proto` | Added `VRFProposalProof` (the injected-proof message) |
+| `proto/steroid/vrf/v1/genesis.proto` | Added `last_vrf_output`/`last_tx_accumulator`/`last_accepted_time_unix_nano` for seed-continuity across restarts |
+| `app/app.go` | `x/vrf` store key, keeper construction (now takes `StakingKeeper`), module manager registration, init-genesis ordering, VRF key loading, `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker` |
 | `go.mod` | Added `github.com/ProtonMail/go-ecvrf` (ECVRF-EDWARDS25519-SHA512-TAI, RFC 9381) |
 
 ### Library selection note
@@ -67,51 +75,49 @@ input — it stores raw bytes unconditionally. `ValidateBasic`/genesis
 instead, so a malformed key is rejected at registration time rather than only
 failing later inside proposer verification.
 
+### Blocker found and resolved: `ProcessProposal`/`PrepareProposal` wiring
+
+Found while implementing: CometBFT v0.38's ABCI gives the app no visibility
+into which round it's currently validating (`RequestProcessProposal`/
+`RequestPrepareProposal` have no `Round` field), and Cosmos SDK's `baseapp`
+resets all app-side state on *every* `ProcessProposal`/`PrepareProposal` call
+— confirmed directly in `baseapp/abci.go`. Consequences: Decision 2a's
+"bound rejection to the next-K round-robin candidates" cannot be built
+safely (any cross-round counter would be local, per-validator state —
+different validators would compute different counts depending on their own
+timeout timing, which is how you fork a BFT chain), and the unbounded
+fallback-free version is a liveness bug on its own (an offline/byzantine
+winning validator halts the chain at that height, forever).
+
+**Resolution shipped:** `keeper.ShouldAcceptFallback(proposalTime,
+lastAcceptedTime, window)` — accept a non-winning proposer once the current
+proposal's own timestamp (agreed via the BFT process itself, not locally
+observed) is more than `window` past the last *committed* block's timestamp.
+Both inputs are agreed-upon data, not local observations, so every honest
+validator computes the identical accept/reject decision — this closes the
+determinism gap that made round-counting unsafe. `window` is
+`vrfkeeper.DefaultFallbackWindow` (30s placeholder — a build-time parameter
+per the pattern already used elsewhere in this doc; needs real numbers once
+network round-trip/timeout behaviour is measured).
+
 ### What works now
 
 - `go build ./...`, `go vet ./...` — clean
-- `go test ./x/vrf/...` — all unit tests pass (keeper CRUD + rotation + genesis round-trip, `ValidateBasic`/genesis `Validate` edge cases, seed function known-answer + order-sensitivity + replay-prevention tests against independently-computed SHA-256 fixtures, winner-selection determinism, VRF prove/verify round-trip + the RFC vector re-checked through our own wrapper)
-- `make build` + `scripts/devnet-setup.sh` + `stereodd start` — node still starts and produces blocks with `x/vrf` wired into the module manager (blocks 1–4 finalized, all crisis invariants passing)
-
-### BLOCKED — consensus wiring (`ProcessProposal`/`PrepareProposal`)
-
-Found while implementing, not before: CometBFT v0.38's ABCI gives the app no
-visibility into which round it's currently validating
-(`RequestProcessProposal`/`RequestPrepareProposal` have no `Round` field), and
-Cosmos SDK's `baseapp` resets all app-side state on *every* `ProcessProposal`/
-`PrepareProposal` call — confirmed directly in `baseapp/abci.go` ("Always
-reset state given that ProcessProposal can timeout and be called again in a
-subsequent round"). Consequences:
-
-- **Decision 2a (bounded round-cycling) cannot be built safely.** Any
-  cross-round rejection counter would have to live in local, per-validator
-  memory, and different validators would compute different counts depending
-  on their own local timeout timing — the kind of non-determinism that forks
-  a BFT chain.
-- **The unbounded fallback (Decision 4's literal text) is a liveness bug on
-  its own**, not just a latency cost: reject every non-winning proposer with
-  no fallback, and an offline/crashed/byzantine winning validator **halts the
-  chain at that height with no recovery path**.
-
-This needs a real design decision from G4L1L3O before any `ProcessProposal`
-rejection logic is written — see `docs/FUTURE-ARCHITECTURE.md` D1a for the
-three options sketched (deterministic time-based fallback / a CometBFT
-version-or-ABCI-extension that exposes round number safely / a different
-consensus mechanism entirely). Not a quick fix.
+- `go test ./x/vrf/...`, `go test ./app/vrfkey/...` — all unit tests pass, including the six core `EvaluateProposal` scenarios: winner-with-valid-proof accepted, non-winner rejected before the fallback window, non-winner accepted after it (with and without a proof of their own), no-registered-candidates always accepts (bootstrap safety), and winner-with-a-bad-proof still rejected before fallback (identity match alone isn't enough)
+- `make build` + `scripts/devnet-setup.sh` + `stereodd start` — **full consensus wiring verified live**: node starts, generates its VRF key file (`config/vrf_key.json`, 0600), and produces blocks through the real `PrepareProposal`→`ProcessProposal`→`PreBlocker` path (exercising the "no registered candidates yet" bootstrap-accept case, since no `MsgRegisterVRFKey` tx has been submitted on this devnet)
 
 ### Known limitations / not yet done
 
-- Proposer-side VRF proof generation is a working *library function*
-  (`x/vrf/proposer.Prove`) but isn't wired to run automatically on a node —
-  needs a VRF privkey file alongside `priv_validator_key.json` and a call site
-  once the blocker above is resolved
-- `ProcessProposal` verification enforcing the direct-index winner — blocked, see above
+- The VRF proof is carried as a magic-prefixed pseudo-tx prepended to the block, not via ABCI++ vote extensions (the more idiomatic mechanism, but a materially bigger lift spanning `ExtendVoteHandler`/`VerifyVoteExtensionHandler` across two heights). Cost: one benign, always-failing tx-decode entry per block in the ABCI response — cosmetic, not a correctness/determinism issue, since every validator sees identical bytes and fails identically. Worth revisiting, not blocking.
+- `DefaultFallbackWindow` (30s) is a placeholder — needs real tuning once multi-validator network timing is measured
+- Multi-validator/byzantine-winner scenarios are only verified by unit test, not a live multi-node network — the single-validator devnet only exercises the "no candidates registered" path, not real winner/non-winner/fallback behavior under real network timing
 - No cooldown on key rotation (spec flagged this as a "consider," not a requirement — a second `MsgRegisterVRFKey` overwrites immediately)
 - REST gateway routes for `x/vrf` queries — not registered (gRPC/CLI only for now)
+- No CLI command wraps `app/vrfkey` for an operator to view/rotate their VRF key independent of node startup
 
 ### Next tasks (priority order)
 
-1. **D1a — resolve the ProcessProposal/liveness blocker above.** G4L1L3O design decision required before any more code lands here.
+1. **D1a — multi-validator network test.** Stand up a multi-node testnet, register VRF keys, and actually observe: correct winner selection, non-winner rejection, and fallback-window acceptance when a winner is taken offline. This is the one thing a single-node devnet can't verify — recommended before treating this as production-ready.
 2. **D4 — Emission curve**: Replace default `x/mint` params with the Steroid emission schedule. G4L1L3O to specify.
 3. **D10 — S4QL migration tool**: Blocking for M1 cutover.
 4. **D5 — x/assets + x/alias**: Spec from G4L1L3O first.
