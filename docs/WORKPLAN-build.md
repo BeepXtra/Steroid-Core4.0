@@ -26,6 +26,72 @@
 
 ---
 
+## [DONE] — D7 complete: REST compatibility gateway (completed 2026-07-05, claude/d7-rest-gateway → lars/rebuild)
+
+Maps all 34 legacy `/api/*` endpoints to CometBFT RPC + Cosmos SDK gRPC, providing
+drop-in HTTP compatibility for existing wallets and block explorers.
+
+### Files built
+
+| File | Description |
+|------|-------------|
+| `x/gateway/types.go` | Response envelope (`{"status":"ok","data":...}`), all JSON types: `blockData`, `txData`, `validatorData`, `nodeInfoData`, `walletData`; `ubpcPerBPC = 100_000_000`; `AppVersion = "4.0.0"` |
+| `x/gateway/client.go` | `NodeClient` wrapping CometBFT HTTP RPC + gRPC; methods: `LatestBlock`, `BlockByHeight`, `Status`, `MempoolSize`, `Tx`, `TxsByAddress`, `TxsInBlock`, `BroadcastTxGRPC`, `Balance`, `TotalSupply`, `Validators`, `PeerCount`; helpers: `addrToBech32` (base58/bech32 → bech32 for CometBFT queries), `ubpcToBPC`, `blockHash` |
+| `x/gateway/utils.go` | `compressPublicKey` — 65-byte uncompressed secp256k1 → 33-byte compressed via `github.com/decred/dcrd/dcrec/secp256k1/v4` |
+| `x/gateway/handlers.go` | All 34 HTTP handler functions; helpers: `toBlockData`, `parseTx`, `parseEventAmount`, `parseBPC`, `validatorStatus`, `parseHeightVar`, `decodePubKeyString`, `decodeB64OrHex` |
+| `x/gateway/server.go` | `StartGateway(ctx, listen, node, grpc)` — gorilla/mux router, graceful shutdown; `registerRoutes` wires all 34 routes + D5 stubs |
+| `x/gateway/gateway_test.go` | 7 unit tests: info, version, checkaddress, generate_wallet, D5 stubs → 501, send missing params, ubpcToBPC table |
+| `cmd/stereodd/cmd/gateway.go` | `GatewayCmd()` cobra subcommand: `stereodd gateway --listen :8080 --node tcp://localhost:26657 --grpc localhost:9090` |
+| `cmd/stereodd/cmd/root.go` | `GatewayCmd()` added to root command |
+
+### Endpoint mapping
+
+| Legacy endpoint | Implementation |
+|-----------------|----------------|
+| `GET /api` | version/info string |
+| `GET /api/version` | `AppVersion` |
+| `GET /api/sanity` | CometBFT `Status` health check |
+| `GET /api/node-info` | hostname, height, peers, mempool, validators, system info |
+| `GET /api/currentblock` | latest committed block |
+| `GET /api/getblock/:height` | block by height |
+| `GET /api/getblocktransactions/:height` | all txs in a block |
+| `GET /api/gettransaction/:id` | single tx by hash |
+| `GET /api/gettransactions/:address` | paginated txs for an address |
+| `GET /api/getbalance/:address` | confirmed ubpc balance |
+| `GET /api/getpendingbalance` | same as confirmed (mempool deduction deferred to D4) |
+| `GET /api/getaddress/:public_key` | base58 address from secp256k1 public key |
+| `GET /api/base58/:string` | raw base58 encoding |
+| `GET /api/checkaddress` | validate address format |
+| `GET /api/checksignature/:pk/:sig/:data` | secp256k1 signature verification |
+| `GET /api/generate_wallet` | generate new secp256k1 keypair + base58 address |
+| `GET /api/getpublickey` | 501 (requires on-chain lookup; use `/api/getaddress` instead) |
+| `GET /api/masternodes` | bonded validators list |
+| `GET /api/mempoolsize` | unconfirmed tx count |
+| `GET /api/totalsupply` | total ubpc supply |
+| `GET /api/circsupply` | total − bonded (approximate) |
+| `GET /api/randomnumber` | deterministic RNG from block hash |
+| `GET /api/send` | broadcast Cosmos SDK tx (base64 `tx_bytes`); rejects legacy PHP format with 501 |
+| `GET /api/getaliasaddress` et al. | 501 (D5 — aliases/assets, not yet implemented) |
+
+### What works now
+
+- `go build ./...` — clean
+- `go test ./x/gateway/...` — all 7 tests pass
+- `stereodd gateway --listen :8080 --node tcp://localhost:26657 --grpc localhost:9090` — starts HTTP server
+- All non-D5 endpoints return correct JSON envelope or clear error
+- Both base58 and bech32 address formats accepted on all address parameters
+
+### Known limitations / not yet done
+
+- `/api/getpendingbalance` returns confirmed balance only — mempool deduction requires D4-level tx tracking
+- `/api/send` rejects the legacy PHP tx format (different signing scheme entirely); new wallets must use Cosmos SDK tx format
+- D5 endpoints (aliases, assets) return 501 — pending `x/assets` + `x/alias` modules
+- VRF-related endpoints not registered on the gateway (gRPC/CLI only for now)
+- No CORS headers — add a middleware if a browser-based frontend needs to call the gateway directly
+- No rate limiting — add `golang.org/x/time/rate` middleware for production deployment
+
+---
+
 ## [DONE] — D1a complete: VRF proposer rotation wired into consensus
 
 Implements all of D1a per the resolved implementation spec (see
@@ -121,7 +187,7 @@ network round-trip/timeout behaviour is measured).
 2. **D4 — Emission curve**: Replace default `x/mint` params with the Steroid emission schedule. G4L1L3O to specify.
 3. **D10 — S4QL migration tool**: Blocking for M1 cutover.
 4. **D5 — x/assets + x/alias**: Spec from G4L1L3O first.
-5. **D7 — REST gateway**: Map `doc/` apidoc endpoints → new core handlers.
+5. ~~**D7 — REST gateway**: Map `doc/` apidoc endpoints → new core handlers.~~ ✅ DONE (see [DONE] section below)
 
 ---
 
@@ -204,7 +270,7 @@ network round-trip/timeout behaviour is measured).
 
 **TheRealGofre** (implements from spec, guided by G4L1L3O)
 - `x/gov` module wiring + vote-semantics mapping from existing PHP logic
-- REST compatibility gateway (D7): map `doc/` apidoc endpoints → new core handlers — this is grunt work, well-defined contract
+- ~~REST compatibility gateway (D7): map `doc/` apidoc endpoints → new core handlers~~ ✅ DONE — `x/gateway` package + `stereodd gateway` subcommand (see [DONE] section above)
 - Genesis file validation tooling (balance-for-balance check)
 
 **LARS**

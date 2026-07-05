@@ -99,6 +99,7 @@ func initRootCmd(rootCmd *cobra.Command, txConfig client.TxConfig) {
 			steroidaddress.Codec{},
 		),
 		keys.Commands(),
+		GatewayCmd(),
 	)
 
 	_ = flags.FlagHome // ensure flags package init() runs
