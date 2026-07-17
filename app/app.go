@@ -4,7 +4,6 @@
 // params, crisis, genutil.
 //
 // Design decisions scaffolded here but implemented later:
-//   - TODO(D1a): VRF proposer rotation — custom PrepareProposal/ProcessProposal handlers.
 //   - TODO(D3):  Custom base58 address codec (see app/codec.go).
 //   - TODO(D4):  Emission curve, reward splits, min-bond economic parameters.
 //   - TODO(D5):  x/assets and x/alias custom modules.
@@ -15,7 +14,6 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"path/filepath"
 
 	dbm "github.com/cosmos/cosmos-db"
 
@@ -90,10 +88,6 @@ import (
 	consensuskeeper "github.com/cosmos/cosmos-sdk/x/consensus/keeper"
 	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
 
-	"github.com/cosmos/cosmos-sdk/client/flags"
-	"github.com/spf13/cast"
-
-	steroidvrfkey "github.com/beepxtra/steroid-core4.0/app/vrfkey"
 	vrfmodule "github.com/beepxtra/steroid-core4.0/x/vrf"
 	vrfkeeper "github.com/beepxtra/steroid-core4.0/x/vrf/keeper"
 	vrftypes "github.com/beepxtra/steroid-core4.0/x/vrf/types"
@@ -158,13 +152,7 @@ type App struct {
 	ConsensusParamKeeper consensuskeeper.Keeper
 
 	// ── Custom module keepers ─────────────────────────────────────────────────
-	VRFKeeper vrfkeeper.Keeper // D1a — validator VRF key registration (Decision 2)
-
-	// vrfPrivKey is this node's own VRF private key (app/vrfkey), used only to
-	// attach a proof when this node happens to be the round's proposer. Empty
-	// if the key file couldn't be loaded — PrepareProposal degrades to
-	// proposing without a proof rather than failing the node's own startup.
-	vrfPrivKey []byte
+	VRFKeeper vrfkeeper.Keeper // D1a — validator VRF key registration (v2: ECVRF rotation)
 
 	// TODO(D5): AssetsKeeper assetskeeper.Keeper
 	// TODO(D5): AliasKeeper  aliaskeeper.Keeper
@@ -353,20 +341,6 @@ func New(
 		app.StakingKeeper,
 	)
 
-	// This node's own VRF key (app/vrfkey) — generated on first start if
-	// absent. Only used to attach a proof when this node is the round's
-	// proposer; a load failure is logged and left empty rather than
-	// preventing the node from starting at all.
-	homeDir := cast.ToString(appOpts.Get(flags.FlagHome))
-	if homeDir != "" {
-		privKey, _, vrfKeyErr := steroidvrfkey.LoadOrGenerate(filepath.Join(homeDir, "config"))
-		if vrfKeyErr != nil {
-			logger.Error("failed to load/generate VRF key; this node will propose without a VRF proof", "error", vrfKeyErr)
-		} else {
-			app.vrfPrivKey = privKey
-		}
-	}
-
 	// ── Staking hooks — must be set after DistrKeeper + SlashingKeeper ───────
 	app.StakingKeeper.SetHooks(
 		stakingtypes.NewMultiStakingHooks(
@@ -374,10 +348,6 @@ func New(
 			app.SlashingKeeper.Hooks(),
 		),
 	)
-
-	// TODO(D1a): after keepers are wired, register VRF proposer rotation:
-	//   bApp.SetPrepareProposal(vrfprepare.Handler(app.StakingKeeper, ...))
-	//   bApp.SetProcessProposal(vrfprocess.Handler(app.StakingKeeper, ...))
 
 	// ── Module manager ───────────────────────────────────────────────────────
 	app.ModuleManager = module.NewManager(
@@ -468,14 +438,6 @@ func New(
 	app.SetInitChainer(app.InitChainer)
 	app.SetBeginBlocker(app.BeginBlocker)
 	app.SetEndBlocker(app.EndBlocker)
-
-	// D1a — VRF proposer enforcement (Decision 4). See
-	// docs/FUTURE-ARCHITECTURE.md D1a for the liveness-fallback design
-	// (vrfkeeper.DefaultFallbackWindow) this relies on to avoid stalling the
-	// chain if the seed-selected winner is offline.
-	bApp.SetPrepareProposal(app.VRFKeeper.PrepareProposalHandler(func() []byte { return app.vrfPrivKey }))
-	bApp.SetProcessProposal(app.VRFKeeper.ProcessProposalHandler(vrfkeeper.DefaultFallbackWindow))
-	bApp.SetPreBlocker(app.VRFKeeper.PreBlockerHandler(vrfkeeper.DefaultFallbackWindow))
 
 	// ── Store mounting ────────────────────────────────────────────────────────
 	app.MountKVStores(app.keys)

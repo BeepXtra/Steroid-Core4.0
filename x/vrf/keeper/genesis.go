@@ -20,9 +20,6 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
 	if err := k.LastVRFOutput.Set(ctx, genState.LastVrfOutput); err != nil {
 		panic(err)
 	}
-	if err := k.LastTxAccumulator.Set(ctx, genState.LastTxAccumulator); err != nil {
-		panic(err)
-	}
 	lastAccepted := genState.LastAcceptedTimeUnixNano
 	if lastAccepted == 0 {
 		lastAccepted = ctx.BlockTime().UnixNano()
@@ -55,10 +52,6 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 	if err != nil {
 		panic(err)
 	}
-	lastTxAccumulator, err := k.LastTxAccumulator.Get(ctx)
-	if err != nil {
-		panic(err)
-	}
 	lastAcceptedTimeUnixNano, err := k.LastAcceptedTimeUnixNano.Get(ctx)
 	if err != nil {
 		panic(err)
@@ -67,7 +60,6 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 	return &types.GenesisState{
 		ValidatorVrfKeys:         entries,
 		LastVrfOutput:            lastVRFOutput,
-		LastTxAccumulator:        lastTxAccumulator,
 		LastAcceptedTimeUnixNano: lastAcceptedTimeUnixNano,
 	}
 }

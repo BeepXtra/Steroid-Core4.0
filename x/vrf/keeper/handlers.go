@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"crypto/sha256"
 	"time"
 
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -74,21 +73,13 @@ func (k Keeper) ProcessProposalHandler(fallbackWindow time.Duration) sdk.Process
 func (k Keeper) PreBlockerHandler(fallbackWindow time.Duration) sdk.PreBlocker {
 	return func(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
 		var injected *types.VRFProposalProof
-		userTxs := req.Txs
 		if len(req.Txs) > 0 {
 			if proof, ok := k.DecodeProofTx(req.Txs[0]); ok {
 				injected = proof
-				userTxs = req.Txs[1:]
 			}
 		}
 
-		userTxHashes := make([][]byte, len(userTxs))
-		for i, tx := range userTxs {
-			h := sha256.Sum256(tx)
-			userTxHashes[i] = h[:]
-		}
-
-		if err := k.RecordAcceptedProposal(ctx, req.Height, req.Time, req.ProposerAddress, injected, userTxHashes, fallbackWindow); err != nil {
+		if err := k.RecordAcceptedProposal(ctx, req.Height, req.Time, req.ProposerAddress, injected, fallbackWindow); err != nil {
 			return nil, err
 		}
 		return &sdk.ResponsePreBlock{}, nil

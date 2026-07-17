@@ -47,7 +47,6 @@ func setupEvaluateTest(t *testing.T, identities ...vrfIdentity) (keeper.Keeper, 
 
 	// Genesis-equivalent baseline state.
 	require.NoError(t, k.LastVRFOutput.Set(ctx, []byte{}))
-	require.NoError(t, k.LastTxAccumulator.Set(ctx, seed.ComputeTxAccumulator(nil)))
 	genesisTime := time.Unix(1_700_000_000, 0)
 	require.NoError(t, k.LastAcceptedTimeUnixNano.Set(ctx, genesisTime.UnixNano()))
 
@@ -63,9 +62,7 @@ func computeWinner(t *testing.T, k keeper.Keeper, ctx sdk.Context, height int64)
 	require.NoError(t, err)
 	prevOutput, err := k.LastVRFOutput.Get(ctx)
 	require.NoError(t, err)
-	prevAcc, err := k.LastTxAccumulator.Get(ctx)
-	require.NoError(t, err)
-	s := seed.ComputeSeed(prevOutput, height, prevAcc)
+	s := seed.ComputeSeed(prevOutput, height)
 	idx, err := proposer.SelectWinner(s, candidates)
 	require.NoError(t, err)
 	return vrfIdentity{operator: candidates[idx].Address}
@@ -75,9 +72,7 @@ func proveFor(t *testing.T, k keeper.Keeper, ctx sdk.Context, height int64, id v
 	t.Helper()
 	prevOutput, err := k.LastVRFOutput.Get(ctx)
 	require.NoError(t, err)
-	prevAcc, err := k.LastTxAccumulator.Get(ctx)
-	require.NoError(t, err)
-	s := seed.ComputeSeed(prevOutput, height, prevAcc)
+	s := seed.ComputeSeed(prevOutput, height)
 	_, proof, err := proposer.Prove(id.privKey, s)
 	require.NoError(t, err)
 	return &types.VRFProposalProof{ValidatorAddress: id.operator, Proof: proof}
@@ -185,7 +180,6 @@ func TestEvaluateProposal_NoRegisteredCandidatesAlwaysAccepts(t *testing.T) {
 	// chain must still be able to produce blocks (bootstrap safety).
 	k, staking, ctx := setupKeeperWithStaking(t)
 	require.NoError(t, k.LastVRFOutput.Set(ctx, []byte{}))
-	require.NoError(t, k.LastTxAccumulator.Set(ctx, seed.ComputeTxAccumulator(nil)))
 	genesisTime := time.Unix(1_700_000_000, 0)
 	require.NoError(t, k.LastAcceptedTimeUnixNano.Set(ctx, genesisTime.UnixNano()))
 

@@ -48,19 +48,15 @@ func (k Keeper) DecodeProofTx(tx []byte) (proof *types.VRFProposalProof, ok bool
 	return &p, true
 }
 
-// currentSeed computes the height's VRF seed from committed keeper state
-// (Decision 3). Reading, not writing, keeper state during ProcessProposal/
-// PrepareProposal is safe — see docs/FUTURE-ARCHITECTURE.md D1a.
+// currentSeed computes the VRF seed for the given height from committed keeper
+// state. Entropy = prev_vrf_output || height only — user tx hashes are
+// permanently excluded (grindable by the block proposer, see D1a).
 func (k Keeper) currentSeed(ctx context.Context, height int64) ([]byte, error) {
 	prevOutput, err := k.LastVRFOutput.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
-	prevAcc, err := k.LastTxAccumulator.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return seed.ComputeSeed(prevOutput, height, prevAcc), nil
+	return seed.ComputeSeed(prevOutput, height), nil
 }
 
 // EvaluateProposal is D1a's core ProcessProposal decision, factored out as
@@ -151,11 +147,10 @@ func (k Keeper) EvaluateProposal(
 }
 
 // RecordAcceptedProposal updates the seed-continuity/fallback-timing state
-// after a block has actually been finalized (PreBlocker), mirroring the same
-// extraction EvaluateProposal used to decide acceptance. txs excludes the
-// injected VRF-proof pseudo-tx (if any) so it doesn't affect Decision 3's
-// tx-accumulator.
-func (k Keeper) RecordAcceptedProposal(ctx sdk.Context, height int64, blockTime time.Time, proposerConsAddr []byte, injectedProof *types.VRFProposalProof, userTxHashes [][]byte, fallbackWindow time.Duration) error {
+// after a block has been finalized (called from PreBlocker). It re-runs
+// EvaluateProposal to extract the VRF output — same inputs, same result,
+// no extra state needed.
+func (k Keeper) RecordAcceptedProposal(ctx sdk.Context, height int64, blockTime time.Time, proposerConsAddr []byte, injectedProof *types.VRFProposalProof, fallbackWindow time.Duration) error {
 	_, vrfOutput, err := k.EvaluateProposal(ctx, height, blockTime, proposerConsAddr, injectedProof, fallbackWindow)
 	if err != nil {
 		return err
@@ -164,9 +159,6 @@ func (k Keeper) RecordAcceptedProposal(ctx sdk.Context, height int64, blockTime 
 		if err := k.LastVRFOutput.Set(ctx, vrfOutput); err != nil {
 			return err
 		}
-	}
-	if err := k.LastTxAccumulator.Set(ctx, seed.ComputeTxAccumulator(userTxHashes)); err != nil {
-		return err
 	}
 	return k.LastAcceptedTimeUnixNano.Set(ctx, blockTime.UnixNano())
 }

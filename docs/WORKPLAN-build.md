@@ -92,102 +92,54 @@ drop-in HTTP compatibility for existing wallets and block explorers.
 
 ---
 
-## [DONE] — D1a complete: VRF proposer rotation wired into consensus
+## [DONE] — x/vrf module: ECVRF key registry + seed + winner selection (v2 scope)
 
-Implements all of D1a per the resolved implementation spec (see
-`docs/FUTURE-ARCHITECTURE.md` §6 D1a): on-chain VRF key registry, seed
-computation, winner selection, VRF prove/verify, and — resolving the
-liveness blocker found while building this (see below) — a time-based
-fallback window, wired into `PrepareProposal`/`ProcessProposal`/`PreBlocker`
-and verified on a live devnet.
+> **Scope update (2026-07-17):** Per the revised architecture (D1a), v1 uses stock
+> CometBFT weighted round-robin — zero custom consensus code. This module is v2 scope.
+> The ABCI wiring (`PrepareProposal`/`ProcessProposal`/`PreBlocker`) and the node-local
+> VRF key generation have been removed from v1. The `x/vrf` code itself is complete and
+> correct for v2; the seed was also fixed in this same commit (see below).
 
 ### Files built / modified
 
 | File | Change |
 |------|--------|
 | `proto/steroid/vrf/v1/*.proto` | `ValidatorVRFKey` state, `MsgRegisterVRFKey` tx, genesis, query definitions |
-| `proto/{cosmos_proto,cosmos/msg/v1,gogoproto,google/api}/*.proto` | Vendored third-party proto deps (no BSR/network dependency for codegen) |
-| `proto/buf.yaml` / `proto/buf.gen.yaml` | buf + `protoc-gen-gocosmos` config, mapping `google/api/*` to the existing `gogo/googleapis` Go package |
-| `scripts/protocgen.sh` | Reproducible codegen: installs buf/gocosmos if missing, runs `buf generate`, relocates output |
-| `Makefile` | `proto` target now runs `scripts/protocgen.sh` (was a stub) |
-| `x/vrf/types/` | Generated pb.go + hand-written `keys.go`, `errors.go`, `msgs.go` (`ValidateBasic`), `genesis.go` (`DefaultGenesis`/`Validate`), `codec.go` |
-| `x/vrf/keeper/` | `Keeper` (collections-based validator-address → VRF-key map), `msg_server.go`, `grpc_query.go`, `genesis.go` |
-| `x/vrf/module.go` | `AppModuleBasic`/`AppModule` wiring (genesis, services, consensus version) |
-| `x/vrf/seed/seed.go` | Standalone `ComputeSeed`/`ComputeTxAccumulator` implementing Decision 3 exactly (empty-block case is the running hash's zero-iteration base case, not a special branch) |
-| `x/vrf/proposer/winner.go` | `SelectWinner` — Decision 1b's direct-index pick, pure function over a seed + canonically-ordered candidate list |
-| `x/vrf/proposer/prove.go` | `Prove`/`Verify` wrapping `ProtonMail/go-ecvrf`, re-validated against the RFC 9381 A.3 vector through our own wrapper (not just the upstream library's own tests) |
-| `x/vrf/keeper/fallback.go` | `ShouldAcceptFallback` — the deterministic, timestamp-based liveness fallback (see "Blocker resolved" below) |
-| `x/vrf/keeper/keeper.go` | `StakingKeeper` expected-keeper interface, `Candidates` (bonded validators × registered VRF keys, canonically sorted), `OperatorAddressByConsAddr`, plus `LastVRFOutput`/`LastTxAccumulator`/`LastAcceptedTimeUnixNano` state |
-| `x/vrf/keeper/abci.go` | `EncodeProofTx`/`DecodeProofTx` (magic-prefixed pseudo-tx), `EvaluateProposal` (the full accept/reject/fallback decision), `RecordAcceptedProposal` |
-| `x/vrf/keeper/handlers.go` | `PrepareProposalHandler`, `ProcessProposalHandler`, `PreBlockerHandler` — the actual ABCI wiring |
-| `app/vrfkey/vrfkey.go` | Node-local VRF private key file (`config/vrf_key.json`, 0600), generated on first start, analogous to `priv_validator_key.json` but for the separate VRF keypair (D1a Decision 2) |
-| `proto/steroid/vrf/v1/types.proto` | Added `VRFProposalProof` (the injected-proof message) |
-| `proto/steroid/vrf/v1/genesis.proto` | Added `last_vrf_output`/`last_tx_accumulator`/`last_accepted_time_unix_nano` for seed-continuity across restarts |
-| `app/app.go` | `x/vrf` store key, keeper construction (now takes `StakingKeeper`), module manager registration, init-genesis ordering, VRF key loading, `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker` |
-| `go.mod` | Added `github.com/ProtonMail/go-ecvrf` (ECVRF-EDWARDS25519-SHA512-TAI, RFC 9381) |
+| `proto/{cosmos_proto,cosmos/msg/v1,gogoproto,google/api}/*.proto` | Vendored third-party proto deps |
+| `x/vrf/types/` | Generated pb.go + hand-written `keys.go`, `errors.go`, `msgs.go`, `genesis.go`, `codec.go` |
+| `x/vrf/keeper/` | `Keeper` (collections-based), `msg_server.go`, `grpc_query.go`, `genesis.go` |
+| `x/vrf/module.go` | `AppModuleBasic`/`AppModule` wiring |
+| `x/vrf/seed/seed.go` | `ComputeSeed(prevVRFOutput, height)` — user tx hashes permanently excluded (grindable by proposer) |
+| `x/vrf/proposer/winner.go` | `SelectWinner` — direct-index pick over canonical candidate list |
+| `x/vrf/proposer/prove.go` | `Prove`/`Verify` via `ProtonMail/go-ecvrf` (RFC 9381 A.3 vectors verified) |
+| `x/vrf/keeper/fallback.go` | `ShouldAcceptFallback` — deterministic timestamp-based liveness fallback |
+| `x/vrf/keeper/handlers.go` | `PrepareProposalHandler`, `ProcessProposalHandler`, `PreBlockerHandler` (not wired in v1) |
+| `app/app.go` | VRFKeeper init + module registration; ABCI handlers removed from v1 wiring |
 
-### Library selection note
+### Seed fix (2026-07-17)
 
-Two other ed25519 VRF libraries were evaluated and rejected before landing on
-`ProtonMail/go-ecvrf`: `vechain/go-ecvrf` only implements secp256k1/P256 (wrong
-curve entirely), and `yoseplee/vrf` predates the finalized RFC 9381 with no
-compliance test vectors of its own. `ProtonMail/go-ecvrf` was verified against
-the RFC's own Appendix A.3 test vectors (key generation, hash-to-curve, nonce
-generation, prove, verify) before adoption.
+Old seed: `SHA256(prevVRFOutput || height || txAccumulatorHash)` — grindable. A
+block proposer who sees the mempool can filter tx inclusion to steer the accumulated
+hash toward a favourable output.
 
-Also found during implementation: `ecvrf.NewPublicKey` never validates its
-input — it stores raw bytes unconditionally. `ValidateBasic`/genesis
-`Validate` do real curve-point validation via `filippo.io/edwards25519`
-instead, so a malformed key is rejected at registration time rather than only
-failing later inside proposer verification.
+New seed: `SHA256(prevVRFOutput || height)` — validator outputs only. User
+transaction hashes are permanently excluded from entropy (D1a).
 
-### Blocker found and resolved: `ProcessProposal`/`PrepareProposal` wiring
+Removed: `ComputeTxAccumulator`, `LastTxAccumulator` keeper state, `userTxHashes`
+parameter from `RecordAcceptedProposal`, corresponding genesis field.
 
-Found while implementing: CometBFT v0.38's ABCI gives the app no visibility
-into which round it's currently validating (`RequestProcessProposal`/
-`RequestPrepareProposal` have no `Round` field), and Cosmos SDK's `baseapp`
-resets all app-side state on *every* `ProcessProposal`/`PrepareProposal` call
-— confirmed directly in `baseapp/abci.go`. Consequences: Decision 2a's
-"bound rejection to the next-K round-robin candidates" cannot be built
-safely (any cross-round counter would be local, per-validator state —
-different validators would compute different counts depending on their own
-timeout timing, which is how you fork a BFT chain), and the unbounded
-fallback-free version is a liveness bug on its own (an offline/byzantine
-winning validator halts the chain at that height, forever).
-
-**Resolution shipped:** `keeper.ShouldAcceptFallback(proposalTime,
-lastAcceptedTime, window)` — accept a non-winning proposer once the current
-proposal's own timestamp (agreed via the BFT process itself, not locally
-observed) is more than `window` past the last *committed* block's timestamp.
-Both inputs are agreed-upon data, not local observations, so every honest
-validator computes the identical accept/reject decision — this closes the
-determinism gap that made round-counting unsafe. `window` is
-`vrfkeeper.DefaultFallbackWindow` (30s placeholder — a build-time parameter
-per the pattern already used elsewhere in this doc; needs real numbers once
-network round-trip/timeout behaviour is measured).
-
-### What works now
+### What works now (v2 code, not wired in v1)
 
 - `go build ./...`, `go vet ./...` — clean
-- `go test ./x/vrf/...`, `go test ./app/vrfkey/...` — all unit tests pass, including the six core `EvaluateProposal` scenarios: winner-with-valid-proof accepted, non-winner rejected before the fallback window, non-winner accepted after it (with and without a proof of their own), no-registered-candidates always accepts (bootstrap safety), and winner-with-a-bad-proof still rejected before fallback (identity match alone isn't enough)
-- `make build` + `scripts/devnet-setup.sh` + `stereodd start` — **full consensus wiring verified live**: node starts, generates its VRF key file (`config/vrf_key.json`, 0600), and produces blocks through the real `PrepareProposal`→`ProcessProposal`→`PreBlocker` path (exercising the "no registered candidates yet" bootstrap-accept case, since no `MsgRegisterVRFKey` tx has been submitted on this devnet)
+- `go test ./x/vrf/...` — all unit tests pass (seed, winner, prove/verify, six EvaluateProposal scenarios)
+- ABCI handlers are implemented and tested but not registered in v1 app wiring
 
-### Known limitations / not yet done
+### What v2 must do to activate VRF
 
-- The VRF proof is carried as a magic-prefixed pseudo-tx prepended to the block, not via ABCI++ vote extensions (the more idiomatic mechanism, but a materially bigger lift spanning `ExtendVoteHandler`/`VerifyVoteExtensionHandler` across two heights). Cost: one benign, always-failing tx-decode entry per block in the ABCI response — cosmetic, not a correctness/determinism issue, since every validator sees identical bytes and fails identically. Worth revisiting, not blocking.
-- `DefaultFallbackWindow` (30s) is a placeholder — needs real tuning once multi-validator network timing is measured
-- Multi-validator/byzantine-winner scenarios are only verified by unit test, not a live multi-node network — the single-validator devnet only exercises the "no candidates registered" path, not real winner/non-winner/fallback behavior under real network timing
-- No cooldown on key rotation (spec flagged this as a "consider," not a requirement — a second `MsgRegisterVRFKey` overwrites immediately)
-- REST gateway routes for `x/vrf` queries — not registered (gRPC/CLI only for now)
-- No CLI command wraps `app/vrfkey` for an operator to view/rotate their VRF key independent of node startup
-
-### Next tasks (priority order)
-
-1. **D1a — multi-validator network test.** Stand up a multi-node testnet, register VRF keys, and actually observe: correct winner selection, non-winner rejection, and fallback-window acceptance when a winner is taken offline. This is the one thing a single-node devnet can't verify — recommended before treating this as production-ready.
-2. **D4 — Emission curve**: Replace default `x/mint` params with the Steroid emission schedule. G4L1L3O to specify.
-3. **D10 — S4QL migration tool**: Blocking for M1 cutover.
-4. **D5 — x/assets + x/alias**: Spec from G4L1L3O first.
-5. ~~**D7 — REST gateway**: Map `doc/` apidoc endpoints → new core handlers.~~ ✅ DONE (see [DONE] section below)
+1. Register `SetPrepareProposal` / `SetProcessProposal` / `SetPreBlocker` in `app/app.go`
+2. Add node-local VRF key file generation back (`app/vrfkey`)
+3. Confirm `DefaultFallbackWindow` (currently 30s placeholder) against real network timing
+4. Clean up the magic-prefixed pseudo-tx approach (replace with ABCI++ vote extensions — see handler comment)
 
 ---
 
@@ -197,40 +149,27 @@ network round-trip/timeout behaviour is measured).
 
 | File | Change |
 |------|--------|
-| `app/address/codec.go` | D3: `DeriveAddress` (SHA512×9 over PKIX DER, manual secp256k1 DER construction — Go's x509 doesn't support secp256k1); `StringToBytes` bech32 fallback for SDK-internal compat; `Base58Encode` / `Base58Decode` / `BytesToString` |
-| `app/codec.go` | `NewInterfaceRegistryWithOptions` with `proto.HybridResolver` + `steroidaddress.Codec{}` wired into signing context (avoids `failingAddressCodec{}` panic during gentx) |
-| `app/app.go` | All v1 keepers fully initialised (AccountKeeper, BankKeeper, StakingKeeper, DistrKeeper, SlashingKeeper, MintKeeper, GovKeeper, CrisisKeeper, ConsensusParamKeeper); full ModuleManager with all v1 modules; AnteHandler; `moduleAuthority()` helper for base58-encoded module authority addresses; `SetInitChainer` / `SetBeginBlocker` / `SetEndBlocker` ABCI wiring; `bApp.SetParamStore` via x/consensus |
-| `cmd/stereodd/cmd/root.go` | `gentx` and `collect-gentxs` commands added with base58 codec; `txConfig` threaded through `initRootCmd` |
-| `scripts/devnet-setup.sh` | Full single-validator devnet bootstrap: init → denom substitution (stake→ubpc) → key creation → base58 address derivation (Python SHA256+RIPEMD160) → add-genesis-account → gentx → collect-gentxs |
+| `app/address/codec.go` | D3: `DeriveAddress` (SHA512×9 over PKIX DER, manual secp256k1 DER construction); `StringToBytes` bech32 fallback; `Base58Encode` / `Base58Decode` / `BytesToString` |
+| `app/codec.go` | `NewInterfaceRegistryWithOptions` with `proto.HybridResolver` + `steroidaddress.Codec{}` |
+| `app/app.go` | All v1 keepers; full ModuleManager; AnteHandler; `moduleAuthority()`; ABCI wiring |
+| `cmd/stereodd/cmd/root.go` | `gentx` + `collect-gentxs` with base58 codec |
+| `scripts/devnet-setup.sh` | Single-validator devnet bootstrap |
 
 ### What works now
 
 - `go build ./...` — compiles clean
-- `go vet ./...` — clean
-- `go test ./app/address/...` — all three tests pass (`TestBase58RoundTrip`, `TestBase58Vectors`, `TestDeriveAddress`)
-- `make build` — produces `./build/stereodd` binary
-- `stereodd init / keys / gentx / collect-gentxs / add-genesis-account` — all CLI commands work
-- **`stereodd start` — node starts, produces blocks** (verified: blocks 1–4 finalized, all 11 crisis invariants passing each block)
-- `scripts/devnet-setup.sh` — bootstraps a working single-validator devnet in one command
-- D3 `DeriveAddress` — correctly computes `base58(SHA512^9(PKIX_DER))` reproducing first-stage address derivation
+- `go test ./app/address/...` — all three tests pass
+- `make build` — produces `./build/stereodd`
+- `stereodd start` — node starts, produces blocks
 
 ### Known limitations / not yet done
 
-- `keys show` displays `cosmos1...` bech32 addresses — SDK v0.50 `client.Context` doesn't expose `WithAddressCodec`; address output is cosmetic only, chain state uses base58 internally
-- `stereodd genesis export` — untested (should work; all modules registered with `ExportGenesis`)
-- VRF proposer rotation (D1a) — key registration + seed function done (see the D1a entry above); proposer-side proof generation and `ProcessProposal` enforcement not yet built, standard CometBFT round-robin still in use for now
+- `keys show` displays bech32 addresses (cosmetic; chain state uses base58 internally)
 - Emission curve (D4) — not started; default SDK mint params in use
 - x/assets + x/alias (D5) — not started; v2 scope
 - S4QL → genesis migration tool (D10) — not started
-- REST compatibility gateway (D7) — not started
-
-### Next tasks (priority order)
-
-1. **D4 — Emission curve**: Replace default `x/mint` params with the Steroid emission schedule (see doc §4). G4L1L3O to specify the exact curve/schedule; TheRealGofre implements.
-2. **D1a — VRF proposer rotation**: Swap CometBFT's round-robin proposer selection for deterministic VRF-based rotation. Requires consensus-layer change — G4L1L3O must design the VRF seed/epoch scheme before TheRealGofre implements.
-3. **D10 — S4QL migration tool**: Snapshot balances, assets, masternodes, governance/votes, aliases from live S4QL → genesis JSON. G4L1L3O owns DB schema knowledge. Blocking for M1 cutover.
-4. **D5 — x/assets + x/alias**: Custom modules for permissionless token launch + alias resolution. Spec from G4L1L3O first.
-5. **D7 — REST gateway**: Map `doc/` apidoc endpoints → new core handlers (TheRealGofre implements from existing apidoc spec).
+- 70-validator cap — not yet set in staking genesis params
+- memiavl/store-v2 storage — not yet wired; default IAVL in use
 
 ---
 
@@ -241,64 +180,105 @@ network round-trip/timeout behaviour is measured).
 | File | Description |
 |------|-------------|
 | `go.mod` / `go.sum` | Module `github.com/beepxtra/steroid-core4.0`, Go 1.22, Cosmos SDK v0.50.10, CometBFT v0.38.12 |
-| `app/params/encoding.go` | `EncodingConfig` struct (InterfaceRegistry, Codec, TxConfig, Amino) |
-| `app/codec.go` | `MakeEncodingConfig()` — registers auth/bank/staking/gov/crypto interfaces |
-| `app/app.go` | `App` struct skeleton: BaseApp embed, keeper field stubs, store key allocation, params keeper, module manager skeleton, all `servertypes.Application` interface methods |
-| `cmd/stereodd/main.go` | Entry point — `svrcmd.Execute` |
-| `cmd/stereodd/cmd/root.go` | Full CLI: `stereodd init`, `keys`, `debug`, `pruning`, `snapshot`, `server`, `genesis` sub-commands |
-| `Makefile` | `build`, `install`, `test`, `test-race`, `lint`, `lint-fix`, `mod-tidy`, `proto` (stub), `clean`, `help` |
-| `.golangci.yml` | errcheck, govet, staticcheck, unused, gofmt, goimports, gocritic, misspell; SA1019 suppressed |
-| `.github/workflows/ci.yml` | CI on push/PR to `lars/rebuild` and `claude/**`: build → test → lint |
-| `proto/README.md` | Placeholder — buf toolchain + custom module proto layout for D1a/D5 |
-| `x/README.md` | Placeholder — x/assets, x/alias planned for v2; handoff rule |
-| `README.md` | Running Locally section updated with actual build targets |
-| `.gitignore` | PHP dirs suppressed; `build/`, `*.test` excluded |
-| `SECURITY.md` | BFT-PoS intro paragraph added |
+| `app/params/encoding.go` | `EncodingConfig` struct |
+| `app/codec.go` | `MakeEncodingConfig()` |
+| `app/app.go` | `App` struct skeleton |
+| `cmd/stereodd/main.go` | Entry point |
+| `cmd/stereodd/cmd/root.go` | Full CLI |
+| `Makefile` | `build`, `install`, `test`, `lint`, `proto`, `clean`, `help` |
+| `.golangci.yml` | errcheck, govet, staticcheck, unused, gofmt, goimports, gocritic, misspell |
+| `.github/workflows/ci.yml` | CI on push/PR to `lars/rebuild` and `claude/**` |
 
 ---
 
 ## v1 Build — Go/Cosmos SDK core
 
 **G4L1L3O**
-- ~~Scaffold `lars/rebuild` branch: Go module init, Cosmos SDK + CometBFT wiring, CI/lint setup~~ ✅ DONE (see [DONE] section above)
-- ~~Custom address codec (base58 ECDSA — D3): `DeriveAddress`, `StringToBytes`/`BytesToString`, bech32 fallback~~ ✅ DONE (see [DONE] section above)
-- ~~Keeper init + module manager wiring + ABCI handlers + `x/consensus` + `moduleAuthority` helper~~ ✅ DONE (see [DONE] section above)
-- ~~Single-validator devnet bootstrap (`scripts/devnet-setup.sh`)~~ ✅ DONE — node produces blocks
-- VRF proposer rotation (D1a) — non-trivial, consensus-critical; specify VRF seed/epoch scheme
-- S4QL → genesis migration tool (D10): balance reconciliation/audit proof — G4L1L3O knows the DB schema intimately
-- Economic parameters: emission curve, reward splits, min bond (D4) — specify curve before TheRealGofre implements
+- ~~Scaffold `lars/rebuild` branch~~ ✅ DONE
+- ~~Custom address codec (base58 ECDSA — D3)~~ ✅ DONE
+- ~~Keeper init + module manager wiring + ABCI handlers + devnet~~ ✅ DONE
+- Wire **memiavl / store/v2** as the commit store; add `cosmossdk.io/store/v2` to `go.mod` (D6 — required from day one, replaces default IAVL bottleneck) — **NEXT**
+- Set **70-validator MaxValidators cap** in staking genesis params (D1a)
+- **x/steroidbank**: total/available/locked balance accounting on top of `x/bank`; 0.3% fee; emission curve port from `SBlock::reward` (WS-B)
+- S4QL → genesis migration tool (D10): balance reconciliation/audit proof — G4L1L3O knows the DB schema
+- Economic parameters: emission curve, reward splits, min bond (D4) — specify before TheRealGofre implements
 
-**TheRealGofre** (implements from spec, guided by G4L1L3O)
-- `x/gov` module wiring + vote-semantics mapping from existing PHP logic
-- ~~REST compatibility gateway (D7): map `doc/` apidoc endpoints → new core handlers~~ ✅ DONE — `x/gateway` package + `stereodd gateway` subcommand (see [DONE] section above)
+**TheRealGofre** (implements from spec)
+- `x/gov` module wiring + vote-semantics mapping from existing PHP logic (v105–v107)
+- ~~REST compatibility gateway (D7)~~ ✅ DONE
 - Genesis file validation tooling (balance-for-balance check)
+- `x/alias` module (from G4L1L3O spec)
 
 **LARS**
 - Spin up a sandbox Go environment on the VOYAGER and WAYFINDER masternodes for build/test
 - Run migration dry-runs against a S4QL snapshot
-- CI automation (build/test on push to `lars/rebuild`)
+- ~~CI automation (build/test on push to `lars/rebuild`)~~ ✅ DONE
 
 ---
 
-## v2 Build — Assets, CosmWasm, AnyData, PoU rewards
+## v1.5 Build — Retail fast path (D2a)
+
+> `x/fastpay` is the hardest module in the build: novel protocol, consensus-adjacent,
+> mandatory Opus-only session, second-session review before merge.
 
 **G4L1L3O**
-- Per-asset fee-pool mechanics design (D5) — economic design
-- Proof-of-usage reward math: `r`, decay curves, same-pair diminishing returns (D5a)
-- CosmWasm integration decision: gas model, contract-chain interface (D6a)
-- AnyData: inline-vs-hash boundary, DA layer choice (D6b)
+- Finalize D2a build-time parameters (§8): checkpoint interval, certificate encoding,
+  intent expiry, fast-path fee timing (charged at checkpoint), equivocation-reconciliation
+  rule, epoch/validator-set rotation gating, validator hardware baseline
+
+**TheRealGofre / dedicated Opus session**
+- `x/fastpay`: validator fast-path daemon, certificate aggregation, checkpoint settlement,
+  merchant edge node (D2a) — per WS-G in the architecture workstream table
+
+**Acceptance criteria (M4):**
+- Certificate round-trip p99 < 500ms on geo-distributed localnet
+- Scripted double-spend attempts NEVER yield two certificates for one (account, nonce)
+- Equivocating account wedges only itself; reconciles at next checkpoint
+- Checkpoint settlement clears `locked` correctly
+- Sustained ≥ 50k fast-path TPS on reference hardware
+
+---
+
+## v2 Build — Assets, CosmWasm, AnyData-lite, PoU rewards, ECVRF
+
+**G4L1L3O**
+- Per-asset fee-pool mechanics design (D5)
+- Proof-of-usage reward math: `r`, decay curves, epoch-bucket pruning (D5a)
+- CosmWasm integration: gas model, contract-chain interface (D6a)
+- AnyData-lite: inline-vs-hash boundary, pin count (default 3), fetch-and-verify frequency (D6b)
+- Fix VRF seed entropy if not already done — **DONE (seed fixed 2026-07-17, tx hashes removed)**
+- Activate ECVRF proposer rotation: re-wire `SetPrepareProposal`/`SetProcessProposal`/`SetPreBlocker` in `app/app.go`; restore node-local VRF key generation; tune `DefaultFallbackWindow`
 
 **TheRealGofre** (implements from spec)
-- Assets module: permissionless token launch + transfer + optional params (D5) from G4L1L3O's spec
-- Alias module (straightforward, low-risk)
-- AnyData module implementation once D6b params are fixed by G4L1L3O
+- `x/assets`: permissionless token launch + transfer + optional params (D5)
+- `x/alias` (if not done in v1)
+- AnyData-lite module implementation (D6b)
+- CosmWasm wiring (D6a)
 
 **LARS**
-- Testnet node orchestration for v2 feature testing
-- Automated regression: forging blocks, asset creation, alias resolution
+- Testnet orchestration for v2 feature testing
+- Automated regression: block production, asset creation, alias resolution, PoU farming attack simulation
+
+---
+
+## Workstream table (parallelizable, from PART III §10)
+
+| WS | Deliverable | Depends on | Phase |
+|----|-------------|-----------|-------|
+| A | Chain scaffold: memiavl/store-v2, localnet, CI | — | v1 |
+| B | `x/steroidbank`: total/available/locked; 0.3% fee; emission | A | v1 |
+| C | Staking/governance: 250k bond, 70-cap, pause/resume, blacklist, cold-staking, vote parity | A | v1 |
+| D | `x/alias` | A, B | v1 |
+| E | Migration tool: S4QL → genesis; base58 codec; reconciliation report | B, C | v1 |
+| F | D7 gateway: REST endpoints from `doc/` apidoc (~~done~~) | A, B | v1 ✅ |
+| G | `x/fastpay`: validator daemon, cert aggregation, checkpoint, edge node (D2a) | B, C | v1.5 |
+| H | `x/assets` (D5), CosmWasm (D6a) | B | v2 |
+| I | AnyData-lite (D6b), proof-of-usage (D5a), ECVRF rotation (D1a v2) | C, G | v2 |
 
 ---
 
 ## Key handoff rule
 
-TheRealGofre should never start a module without a written spec from G4L1L3O first. The doc already flags §8 items as build-time decisions — those all land on G4L1L3O before TheRealGofre touches code. LARS executes and monitors, never decides.
+TheRealGofre should never start a module without a written spec from G4L1L3O first. The
+doc already flags §8 items as build-time decisions — those all land on G4L1L3O before
+TheRealGofre touches code. LARS executes and monitors, never decides.

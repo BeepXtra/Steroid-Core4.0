@@ -83,8 +83,9 @@ defects**, and they're the signal that it's time to graduate:
   but probabilistic settlement; retail at scale wants **sub-second deterministic
   finality** — a next-generation goal (PART II).
 - **Single-database, full-replica** model → easy and dependable to operate, but it
-  scales vertically only. **High-throughput parallel execution is the next-gen
-  design** (PART II).
+  scales vertically only. **The next-gen design scales via a dual-path design:
+  consensus-less payment certificates for retail + a BFT consensus chain**
+  (PART II, D2a/D2b).
 
 ---
 
@@ -196,22 +197,46 @@ time bounded; API read latency decoupled from block production.
 3. **Scale from the first store to the entire planet.**
 4. **Retail payments are first-class.**
 5. **Full feature parity** with the first stage (§5) — nothing is lost.
-6. **Scale on-chain first:** a single high-throughput chain (parallel execution +
-   instant finality); shard only as a last resort (§6, D2).
+6. **Scale via dual execution paths, not chain heroics:**
+   - **Retail fast path (D2a):** consensus-less **payment certificates**
+     (FastPay/Sui model) — every tap verified by a 2/3+ validator quorum
+     **before** approval, final in ~200–400ms, **zero double-spend risk, zero
+     merchant risk, no offline mode**. Capacity scales with validator hardware,
+     not consensus: **100k+ TPS is real on this path** (FastPay measured ~160k
+     TPS with 20 authorities; Sui runs the model in production).
+   - **Consensus path (D2b):** ordinary CometBFT blocks for smart contracts,
+     mass-pay/multi-output, and anything concurrent — funds verified at
+     execution, ~1–2s finality. Slower is acceptable here by design.
+   - Shard only as a last resort (D2).
+
+> **Capacity framing (honest, for all external material):** "100k+ TPS" =
+> the retail fast path (D2a), where every transaction is quorum-verified and
+> final before the merchant accepts. Consensus-path (block) throughput target
+> is 3–5k TPS sustained. Both numbers are defensible; never conflate them.
 
 ## 4. Architecture
 
-A **BFT proof-of-stake** chain where today's **masternodes are the validator set**,
-giving **instant (sub-second) deterministic finality** — what retail needs, not
-probabilistic PoW. Throughput comes from **parallel/optimistic execution on a
-single high-throughput chain**, not from geographic sharding.
+A **dual-path payment network** on one validator set:
 
-**Stack: Go + Cosmos SDK + CometBFT.**
-- **CometBFT (Tendermint) BFT-PoS** → instant finality; validators = masternodes.
-- **Cosmos SDK modules** reused: a balances/transfer module, `x/staking` (validator
-  bonding ↔ the 250k masternode stake), `x/gov` (↔ on-chain votes), `x/authz`,
-  `x/feegrant`. Custom modules for the rest (assets, alias).
-- **Storage:** RocksDB + IAVL authenticated state tree → light-client proofs.
+1. **Retail fast path (D2a)** — consensus-less payment certificates. Merchant
+   edge node broadcasts the customer-signed transfer to all validators in
+   parallel; 2/3+ signatures = an irrevocable certificate. Verified on the
+   spot, final in ~200–400ms, no blocks involved. Certificates settle into
+   checkpoint blocks via the `total`/`available`/`locked` model.
+2. **Consensus path (D2b)** — BFT proof-of-stake blocks, today's
+   **masternodes are the validator set** (**cap: 70 active validators**),
+   **~400–500ms blocks**, instant deterministic finality, 3–5k TPS sustained.
+   Carries smart contracts, assets, mass-pay, governance, and fast-path
+   checkpoints. No PoW, no probabilistic settlement.
+
+**Stack: Go + Cosmos SDK (v0.50+) + CometBFT, ABCI 2.0.**
+- **CometBFT BFT-PoS** → instant finality; validators = masternodes.
+- **Cosmos SDK modules** reused: `x/bank` (balances/transfer), `x/staking`
+  (validator bonding ↔ the 250k masternode stake), `x/gov` (↔ on-chain votes),
+  `x/authz`, `x/feegrant`. Custom modules: assets, alias, `x/fastpay` (D2a).
+- **Storage:** RocksDB backend + **memiavl / store/v2** commitment layer (NOT
+  legacy on-disk IAVL — it is the known state-throughput bottleneck). Light-client
+  proofs preserved.
 
 ## 5. Feature parity — nothing is lost
 
@@ -239,87 +264,103 @@ these forward:
 **Go + Cosmos SDK + CometBFT.** Basis of all consensus/feature decisions below.
 
 ### D1a — Consensus & participation model
-**Consensus:** **CometBFT BFT-PoS over the FULL bonded masternode set** → instant
-finality. **No PoW.** A **VRF beacon** drives **proposer/leader rotation**;
-everyday user transactions feed entropy into the beacon.
+**Consensus:** **CometBFT BFT-PoS over the bonded masternode set, capped at 70
+active validators** (CometBFT gossip degrades past ~100) → instant finality.
+**No PoW.**
+
+**Proposer rotation:**
+- **v1: stock CometBFT weighted round-robin.** Deterministic is acceptable — the
+  set is bonded, slashable, and publicly known. Zero custom consensus code in v1.
+- **v2: ECVRF (RFC 9381, ed25519) proposer rotation**, enforced via ABCI 2.0
+  `ProcessProposal`. **Entropy source: validator VRF outputs only. User
+  transactions NEVER feed the beacon** (tx-fed entropy is grindable by the block
+  proposer — permanently excluded).
 
 **"Participate by using" model:**
 - **Merchant edge nodes:** each merchant's Steroid instance also runs a light
   edge/relay node → every store adds ingress/read capacity.
 - **Proof-of-usage rewards** (→ D5a).
 - **Phone light clients:** consumer devices verify their own balances/txs trustlessly.
-- **Randomness from usage:** user transactions feed the VRF beacon.
-- **Excluded:** consumer-phone compute, storage/CDN, hashrate.
-
-**D1a implementation spec (resolved):**
-- **VRF algorithm:** ECVRF-EDWARDS25519-SHA512-TAI (RFC 9381), via
-  `github.com/ProtonMail/go-ecvrf` — verified against the RFC's own Appendix
-  A.3 test vectors before adoption (two other ed25519 VRF libraries were
-  evaluated and rejected: one implements the wrong curve entirely, the other
-  predates the finalized RFC with no compliance test vectors of its own).
-- **VRF key:** a separate keypair per validator, registered on-chain via
-  `MsgRegisterVRFKey` (`x/vrf` module); a second registration from the same
-  validator rotates the key. A validator with no registered key is skipped
-  from proposer selection.
-- **Seed construction:** `SHA256(prev_vrf_output || block_height ||
-  tx_accumulator_hash)`, where `tx_accumulator_hash` is a running SHA-256 over
-  the previous block's tx hashes in order; the empty-block case
-  (`SHA256([]byte{})`) falls out of the running hash's zero-iteration base
-  case rather than needing a special branch.
-- **Winner selection:** direct index pick — the seed alone deterministically
-  selects one winner index into the validator set; the VRF proof establishes
-  that validator's identity/eligibility rather than "winning" a comparison
-  against other candidates' outputs.
-- **Round-latency bound — revised from "next-K round-robin candidates" to a
-  time-based fallback window.** CometBFT v0.38's ABCI gives the app no
-  visibility into which round it is currently validating
-  (`RequestProcessProposal`/`RequestPrepareProposal` carry no `Round` field),
-  and Cosmos SDK's `baseapp` resets all app-side state on *every*
-  `ProcessProposal`/`PrepareProposal` call — so a cross-round rejection
-  counter is not implementable without introducing per-validator
-  non-determinism (different validators' local timeouts would produce
-  different counts, which is how you fork a BFT chain). Implemented instead:
-  **`ShouldAcceptFallback(proposalTime, lastAcceptedTime, window)`** —
-  accept a non-winning proposer once `proposalTime` (part of the specific
-  proposal being validated, agreed via the BFT process itself) is more than
-  `window` (`vrfkeeper.DefaultFallbackWindow`, a build-time parameter, 30s
-  placeholder) past `lastAcceptedTime` (previously committed chain state).
-  Both inputs are agreed-upon, not locally observed, so every honest
-  validator evaluating the same proposal computes the same accept/reject
-  decision. This also closes the liveness hole in Decision 4's literal text
-  (reject every non-winner, forever, if the true winner never proposes) —
-  without a fallback, an offline/byzantine winning validator would halt the
-  chain at that height with no recovery path.
-- **Status: implemented end-to-end and wired into consensus.** `x/vrf`
-  module (key registration, keeper, genesis), seed computation, winner
-  selection, VRF prove/verify, the fallback-window function, `Candidates`
-  (bonded validators × registered VRF keys, via `x/staking`),
-  `EvaluateProposal` (the full accept/reject/fallback decision), and the
-  `PrepareProposal`/`ProcessProposal`/`PreBlocker` handlers are all
-  implemented, unit-tested (including the six core accept/reject/fallback
-  scenarios), and verified on a live single-validator devnet. A VRF proof is
-  carried as a magic-prefixed pseudo-tx prepended to the block rather than
-  via ABCI++ vote extensions (the more idiomatic mechanism, but a
-  materially bigger lift needing `ExtendVoteHandler`/
-  `VerifyVoteExtensionHandler` across two heights) — the cost is one benign,
-  always-failing tx-decode entry per block in the ABCI response, not a
-  correctness or determinism issue, since every validator sees identical
-  bytes. Flagged as a clean follow-up refinement, not a blocker.
+- **Excluded:** consumer-phone compute, storage/CDN, hashrate, and tx-fed
+  VRF entropy (grindable — see above).
 
 ### D2 — Throughput & scaling strategy
-**One high-throughput chain (v1/v2).**
-- **Parallel/optimistic execution** (transactions touching disjoint accounts run
-  concurrently), **instant BFT finality**, ABCI 2.0 mempool lanes, edge
-  read-replicas. One global state.
-- **Native `total` / `available` / `locked` balance accounting:** on payment,
-  validate `available`, atomically move the amount to `locked` until finality, then
-  settle and update both parties.
+**Dual execution paths on one validator set (D2a fast path + D2b consensus
+path).**
+- Consensus path: single global state, instant BFT finality, ABCI 2.0 mempool
+  lanes, edge read-replicas. **3–5k TPS sustained is the target — no Block-STM /
+  optimistic-execution work** (revisit only if the consensus path actually
+  saturates).
+- Retail per-tap capacity comes from D2a, which involves **no consensus round at
+  all** — validators verify independently and in parallel; capacity scales with
+  validator hardware and account-space sharding *inside* each validator.
+- **Native `total` / `available` / `locked` accounting spans both paths:**
+  fast path locks at certificate time and settles at checkpoint; consensus path
+  locks and settles within block execution.
 
-**Sharding — last resort only**, when a single chain is truly saturated, and then
-by **account-space with load-aware rebalancing** (hot merchants split/migrate) —
-**not geography, not IBC at the till**. Checkout never waits on cross-shard
-finality: local = instant single-shard; cross-region = **instant merchant
-acceptance via escrow/receipt + async settlement**.
+**Chain-level sharding — last resort only** (v3), by **account-space with
+load-aware rebalancing** — not geography, not IBC at the till. With the fast
+path absorbing retail load, it is unlikely to ever trigger.
+
+### D2a — Retail fast path: payment certificates (the capacity answer)
+**Consensus-less, quorum-verified transfers (FastPay model; run in production
+by Sui as its single-owner fast path). Every payment is verified by validators
+BEFORE the merchant approves. No offline mode. No merchant risk. Funds are
+final.**
+
+Per tap:
+1. **Intent:** customer wallet signs `{payer, payee, amount, nonce}`.
+2. **Broadcast:** the merchant edge node sends the intent to **all active
+   validators in parallel** (online-only — no uplink, no sale).
+3. **Independent verification:** each validator checks signature + `available`
+   balance + nonce, moves the amount `available → locked`, and returns its
+   signature. A validator NEVER signs two transfers with the same
+   `(account, nonce)`.
+4. **Certificate:** the edge node aggregates **2/3+ validator signatures** into
+   a certificate. By quorum intersection, a conflicting certificate for the same
+   `(account, nonce)` **cannot exist** — double-spend is impossible, not
+   "risk-managed". The certificate is the merchant's proof of final,
+   irrevocable payment.
+5. **Latency:** one parallel round trip → **~200–400ms** verified finality.
+6. **Settlement:** certificates are folded into periodic **checkpoint blocks**
+   on the consensus path (D2b): `locked` clears, payee `total`/`available`
+   credit, fees applied, state committed to the authenticated store.
+
+**Rules & recovery:**
+- **One in-flight transfer per account** (per nonce). Retail-fine; wallets
+  enforce sequencing.
+- A client that equivocates (signs two intents with one nonce) can wedge only
+  **its own account** until the next checkpoint reconciles it. Nobody else is
+  affected; funds are never double-spent.
+- Certificate format: canonical deterministic encoding; verifiable by anyone
+  (including on the consensus path) against the known validator set for that
+  epoch.
+- Validator-set changes (epoch boundaries) gate the fast path: certificates are
+  valid against the epoch's registered set; checkpoints carry set updates.
+
+**Capacity:** no global ordering step → validators process transfers
+independently, parallel across cores/machines (account-space partitioning
+inside the validator). FastPay's published benchmark: **~160k TPS at 20
+authorities**; this is the honest, verifiable basis of the "100k+ TPS" claim
+(§3). New custom module + sidecar service: `x/fastpay` + validator fast-path
+daemon.
+
+### D2b — Consensus path: contracts, mass-pay, concurrency
+Everything that is not a simple single-payer retail transfer goes through
+normal CometBFT block consensus — **this mode is stock chain behaviour, zero
+extra machinery:**
+- Smart-contract calls (CosmWasm, D6a), asset ops (D5), governance, staking.
+- **Mass-pay:** one transaction, N outputs (batch-transfer msg) — 10k payouts =
+  one consensus tx, funds verified once against the payer's balance at
+  execution.
+- Wallets needing **concurrent sends** (contracts, payout engines): submit to
+  the consensus path; block ordering resolves concurrency; validators verify
+  funds directly at execution. ~1–2s finality — acceptable by design; balance
+  verification, not speed, is the requirement here.
+
+**Routing is per-transaction, not per-wallet:** simple transfer → D2a;
+multi-output, contract call, or concurrent stream → D2b. The same account may
+use both (D2a lock rules apply while a certificate is in flight).
 
 ### D3 — Address / key / wallet compatibility
 **Preserve base58 addresses via a custom address codec** (secp256k1 keys
@@ -355,27 +396,37 @@ state lookup); no identity, no Sybil-ring detection.**
 - **Reward = `r` × fee paid, `r` < 1, always** → any self-dealing loop is
   net-negative per iteration.
 - **Same-pair diminishing returns:** a per-`(payer, payee)` counter decays `r`
-  toward ~0 for repeated loops over the same pair.
-- **Counterparty diversity** weighting via a bounded per-account decaying tally.
+  toward ~0 for repeated loops over the same pair. **Counters live in
+  epoch-bucketed state that expires and is pruned** (e.g. rolling N epochs) —
+  state growth is bounded by construction, never open-ended per-pair rows.
+- **Counterparty diversity** weighting via a bounded per-account decaying tally
+  (same epoch-bucket + pruning rule).
 - **Misbehaviour → slash + automatic on-chain delisting.**
 
 ### D6 — State & storage
-Use the **proven storage engine** (RocksDB + IAVL state tree) — no from-scratch
-engine. Deliver Steroid's AnyData + smart-contract capabilities as **modules + a
-deliberate data model on top** (D6a/D6b).
+**RocksDB backend + memiavl / store/v2 commitment layer** — no from-scratch
+engine, and **no legacy on-disk IAVL** (known state-throughput bottleneck; picking
+it now repeats the "aging default" mistake). Deliver Steroid's AnyData +
+smart-contract capabilities as **modules + a deliberate data model on top**
+(D6a/D6b).
 
 ### D6a — Smart contracts / DApps
 First-class DApp support via **CosmWasm** (mature Wasm contracts for this stack);
 contract state lives in the standard store. Gas/integration model finalized at build (§8).
 
-### D6b — "AnyData" on-chain data
-**Designed to avoid chain bloat:** small data inline on-chain; **large data =
-on-chain hash/commitment + content held on the merchant edge-node layer** (D1a/D8).
-For durability, blobs are **erasure-coded + replicated (k-of-n survive loss)** with
-**random proof-of-retrievability challenges → slash/withhold rewards** for nodes
-that can't serve; or integrate an external **DA/permanence layer** (Celestia-style
-DA sampling, or IPFS+Filecoin/Arweave) for blobs needing permanence. Size limits +
-fee-by-size finalized at build (§8).
+### D6b — "AnyData" on-chain data — **v2 ships AnyData-lite**
+**Designed to avoid chain bloat:** small data inline on-chain; large data =
+**on-chain hash/commitment + blob pinned on ≥3 merchant edge nodes** (D8).
+
+**v2 scope (AnyData-lite):** simple retrievability check — validators
+periodically **fetch-and-verify** a random pinned blob against its on-chain hash;
+failure → withhold that node's rewards. No erasure coding, no custom PoR
+protocol. (~1 week of work, covers the real need.)
+
+**Deferred (v3+ / only if demand proves it):** erasure-coded k-of-n replication,
+cryptographic proof-of-retrievability, or an external DA layer
+(Celestia/IPFS+Filecoin/Arweave). This is a Celestia-scale project — explicitly
+out of v2 scope. Size limits + fee-by-size finalized at build (§8).
 
 ### D7 — API & SDK compatibility
 Ship a **generic REST compatibility gateway** mirroring today's endpoints so
@@ -392,15 +443,19 @@ routing; updates are **debounced/epoch-batched**. Reads + tx ingress are
 load-balanced; writes route by account-space (only relevant if/when sharded, D2).
 
 ### D9 — Phased delivery
-- **v1:** transfers + fees, masternode validators (D1a full set + VRF proposer
-  rotation), governance, the API/wallet **compatibility gateway** (D7), and **state
-  migration from S4QL** (balances + base58 addresses carry over, D3/D10). A real,
-  usable, migratable chain.
+- **v1:** transfers + fees, masternode validators (**stock CometBFT proposer
+  rotation**, 70-cap, D1a), governance, the API/wallet **compatibility gateway**
+  (D7), and **state migration from S4QL** (balances + base58 addresses carry
+  over, D3/D10). A real, usable, migratable chain. **Zero custom consensus code.**
+- **v1.5:** the **retail fast path** (`x/fastpay` + validator fast-path daemon
+  + merchant edge node, D2a). This is the retail-capacity release.
 - **v2:** assets/tokens (permissionless launch + per-asset fee pool; optional
-  dividends/inflatable/fixed-price), **smart contracts (CosmWasm,
-  D6a)**, **AnyData (D6b)**, **proof-of-usage rewards (D5a)**.
-- **v3 (only if needed):** **account-space sharding** (last resort, D2) + the
-  **dynamic self-managing edge** (D8).
+  dividends/inflatable/fixed-price), **smart contracts (CosmWasm, D6a)**,
+  **AnyData-lite (D6b)**, **proof-of-usage rewards (D5a)**, **ECVRF proposer
+  rotation (D1a)**.
+- **v3 (only if needed):** **account-space sharding** (last resort, D2), full
+  AnyData durability (D6b deferred items), + the **dynamic self-managing edge**
+  (D8).
 
 ### D10 — Migration / cutover
 Snapshot S4QL state (accounts/balances, assets + asset balances,
@@ -418,28 +473,134 @@ and decided at the next dev meeting.**
 
 ## 7. Build sequence
 
-1. Confirm Go + Cosmos SDK + CometBFT scaffolding on the cleaned `lars/rebuild`.
-2. Build **v1** (D9): balances/transfers + fees; CometBFT over the **full bonded
-   masternode set with VRF proposer rotation** (D1a); `x/gov`; the **API/wallet
-   compatibility gateway** (D7, using `doc/` apidoc + `sdk/` as the contract); and
-   the **S4QL → genesis migration tool** (D10) with base58 addresses preserved (D3).
-3. Build **v2**: assets (permissionless launch + per-asset fee pool; optional
-   dividends/inflatable/fixed-price), CosmWasm (D6a), AnyData (D6b),
-   proof-of-usage rewards (D5a).
-4. **v3 only if a single chain saturates:** account-space sharding + dynamic edge.
+1. Confirm Go + Cosmos SDK (v0.50+) + CometBFT scaffolding on the cleaned
+   `lars/rebuild`; storage wired to **memiavl / store/v2** from day one (D6).
+2. Build **v1** (D9): balances/transfers + fees; CometBFT over the bonded
+   masternode set (**stock proposer rotation, 70-cap**, D1a); `x/gov`; the
+   **API/wallet compatibility gateway** (D7, using `doc/` apidoc + `sdk/` as the
+   contract); and the **S4QL → genesis migration tool** (D10) with base58
+   addresses preserved (D3).
+3. Build **v1.5**: `x/fastpay` module + validator fast-path daemon + merchant
+   edge node (D2a).
+4. Build **v2**: assets (permissionless launch + per-asset fee pool; optional
+   dividends/inflatable/fixed-price), CosmWasm (D6a), AnyData-lite (D6b),
+   proof-of-usage rewards (D5a), ECVRF proposer rotation (D1a).
+5. **v3 only if the settlement chain saturates:** account-space sharding +
+   dynamic edge + full AnyData durability.
 
 ## 8. Design detail to finalize during build
 
 These are build-time parameters, not open architecture questions:
+- **D2a** — checkpoint interval, certificate canonical encoding, intent expiry,
+  fast-path fee mechanics (charged at checkpoint), equivocation-reconciliation
+  rule, epoch/validator-set rotation gating, validator fast-path hardware
+  baseline (cores/RAM per N TPS).
 - **D4** — emission curve, reward splits, minimum bond.
 - **D5** — asset creation fee; per-asset fee-pool mechanics (funding, draw-down,
   top-up, exhaustion behaviour); optional-param definitions.
-- **D5a** — exact `r`, decay curves, pool sizing/refill, diversity-tally shape.
+- **D5a** — exact `r`, decay curves, epoch-bucket length + retention N, pool
+  sizing/refill, diversity-tally shape.
 - **D6a** — CosmWasm gas model + integration.
-- **D6b** — inline-vs-hash size limits, fee-by-size, DA parameters.
-- **D1a** — exact VRF construction; (if v3 sharding is ever triggered) per-shard
-  committee sizing in the dozens+, per-epoch rotation, overlap + automatic fallback
-  to the full set if 2/3 isn't reached within N rounds.
+- **D6b** — inline-vs-hash size limits, fee-by-size, pin-count (default 3),
+  fetch-and-verify challenge frequency.
+- **D1a (v2)** — ECVRF integration details (RFC 9381, ed25519, ABCI 2.0
+  `ProcessProposal` enforcement); (if v3 sharding is ever triggered) per-shard
+  committee sizing, per-epoch rotation, overlap + automatic fallback to the full
+  set if 2/3 isn't reached within N rounds.
 - **D10** — state reconciliation/audit step (balance-for-balance proof that the
   new-core genesis matches live S4QL state before cutover); brief tx-freeze window
   on the old chain to take a clean point-in-time snapshot.
+
+---
+---
+
+# PART III — Build-team handoff
+
+> Execution guide for the build team. Code sessions run on Claude (Sonnet /
+> Opus); multi-session work is orchestrated by **LARS** (Opus coordinator agent
+> driving parallel Opus code sessions). This part tells both humans and agents
+> exactly how to work.
+
+## 9. Repo, branch & environment
+
+- **Repo:** the Steroid repo; **all next-gen work on `lars/rebuild` only.**
+  PHP `master` is the live chain — **never** push next-gen code to `master` or
+  any other branch without explicit operator approval.
+- **Language/stack:** Go (latest stable), Cosmos SDK v0.50+, CometBFT, ABCI 2.0,
+  RocksDB + memiavl/store-v2.
+- **References in-repo:** `doc/` (apidoc) + `sdk/` = the D7 API-parity contract.
+  Treat them as the spec for the compatibility gateway.
+- **CI from day one:** build, `golangci-lint`, unit tests, and a 4-node
+  localnet integration test on every PR to `lars/rebuild`.
+
+## 10. Workstream breakdown (parallelizable)
+
+Each workstream = one owned code session. Interfaces between them are the
+module boundaries below; agree proto/types first, then build in parallel.
+
+| WS | Deliverable | Depends on | Phase |
+|----|-------------|-----------|-------|
+| A | Chain scaffold: app wiring, config, memiavl/store-v2, localnet, CI | — | v1 |
+| B | `x/steroidbank`: total/available/locked balance semantics on top of `x/bank`; 0.3% fee; emission schedule port (`SBlock::reward` parity) | A | v1 |
+| C | Staking/governance adaptation: 250k bond, 70-validator cap, pause/resume, blacklist, cold-staking → delegation mapping, vote-semantics parity (v105–v107) | A | v1 |
+| D | `x/alias` | A, B | v1 |
+| E | Migration tool: S4QL snapshot → genesis; base58 address codec (D3); balance-for-balance reconciliation report (D10) | B, C | v1 |
+| F | D7 compatibility gateway: REST endpoints mirroring `doc/` apidoc, backed by the new chain's gRPC/API | A, B | v1 |
+| G | `x/fastpay`: validator fast-path daemon, certificate aggregation, checkpoint settlement, merchant edge node (D2a) | B, C | v1.5 |
+| H | `x/assets` (D5), CosmWasm integration (D6a) | B | v2 |
+| I | AnyData-lite (D6b), proof-of-usage (D5a), ECVRF rotation (D1a v2) | C, G | v2 |
+
+## 11. Session protocol (Claude code sessions)
+
+- **One workstream per session.** Session receives: this document, its WS row,
+  the relevant D-sections, and the current interface definitions (protos).
+- **Proto-first:** define/agree message types and module interfaces before
+  implementation; interface changes require coordinator sign-off (see §12).
+- **Definition of done per WS:** code + unit tests (≥ the module's consensus
+  paths at 100%) + integration test on the 4-node localnet + updated module
+  README. Not "compiles".
+- **Consensus-critical code** (anything in the state machine): deterministic
+  only — no maps iterated without sorted keys, no floats, no time.Now(), no
+  randomness outside the VRF module. Reviewed by a second session before merge.
+- **Feature-parity tests:** every §5 item gets an explicit test that maps
+  old-chain behaviour → new-chain behaviour (E's reconciliation report is the
+  ultimate parity test).
+- **No scope creep:** if a session believes the spec is wrong, it stops and
+  reports — it does not redesign.
+
+## 12. LARS orchestration model
+
+- **Coordinator (Opus):** owns the WS dependency graph (§10), assigns
+  workstreams to worker sessions, gatekeeps interface/proto changes, merges only
+  green-CI branches into `lars/rebuild`.
+- **Workers (Opus/Sonnet sessions):** one WS each; Sonnet for well-specified
+  mechanical work (gateway endpoints, codecs, test scaffolding), Opus for
+  consensus-adjacent and novel modules (B, C, G, I).
+- **State:** the coordinator keeps WS status + interface registry in LARS
+  memory; every worker session starts by reading it.
+- **LARS scope rules (unchanged from §2c):** read-only against live infra;
+  sandbox/new-build only for mutations; **never** touches the live chain,
+  `master`, or production DBs.
+- **Human gate:** merges to `lars/rebuild` mainline, any dependency addition,
+  and anything touching migration/cutover (E, D10) require operator review.
+
+## 13. Milestone acceptance criteria
+
+- **M1 (scaffold):** 4-node localnet produces blocks at ~500ms; CI green.
+- **M2 (v1 feature-complete):** all §5 v1-scope items pass parity tests;
+  gateway serves the `doc/` apidoc surface; migration tool produces a genesis
+  from a live S4QL snapshot with a clean balance-for-balance reconciliation.
+- **M3 (v1 load):** sustained 3k TPS on reference hardware, p99 finality <1s,
+  24h soak without state growth anomalies.
+- **M4 (v1.5):** certificate round-trip (intent → parallel broadcast → 2/3+
+  quorum → certificate) p99 <500ms on geo-distributed localnet; scripted
+  double-spend attempts NEVER yield two certificates for one (account, nonce);
+  equivocating account wedges only itself and reconciles at next checkpoint;
+  checkpoint settlement clears `locked` correctly; sustained ≥50k fast-path TPS
+  on reference validator hardware (scaling test toward 100k+).
+- **M5 (v2):** asset launch + per-asset fee pool end-to-end; CosmWasm contract
+  deploy/execute; AnyData-lite pin + fetch-and-verify cycle; proof-of-usage
+  rewards net-negative under a scripted farming attack; ECVRF rotation active
+  and enforced via `ProcessProposal`.
+- **Cutover gate (D10):** M2–M4 green + reconciliation audit signed off by the
+  operator; tx-freeze window rehearsed on a staging snapshot first.

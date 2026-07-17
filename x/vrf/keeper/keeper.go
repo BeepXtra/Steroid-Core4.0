@@ -43,12 +43,8 @@ type Keeper struct {
 	ValidatorVRFKeys collections.Map[string, types.ValidatorVRFKey]
 
 	// LastVRFOutput is the most recently accepted proposer's VRF output —
-	// Decision 3's prev_vrf_output for the next height's seed.
+	// used as prev_vrf_output in the next height's seed.
 	LastVRFOutput collections.Item[[]byte]
-
-	// LastTxAccumulator is the previous block's running tx-hash accumulator
-	// (Decision 3).
-	LastTxAccumulator collections.Item[[]byte]
 
 	// LastAcceptedTimeUnixNano is the timestamp of the most recently accepted
 	// block, used to evaluate the fallback window (see ShouldAcceptFallback).
@@ -77,9 +73,6 @@ func NewKeeper(
 		),
 		LastVRFOutput: collections.NewItem(
 			sb, collections.NewPrefix("LastVRFOutput"), "last_vrf_output", collections.BytesValue,
-		),
-		LastTxAccumulator: collections.NewItem(
-			sb, collections.NewPrefix("LastTxAccumulator"), "last_tx_accumulator", collections.BytesValue,
 		),
 		LastAcceptedTimeUnixNano: collections.NewItem(
 			sb, collections.NewPrefix("LastAcceptedTimeUnixNano"), "last_accepted_time_unix_nano", collections.Int64Value,

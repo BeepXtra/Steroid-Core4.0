@@ -5,19 +5,15 @@ import (
 
 	"filippo.io/edwards25519"
 	"github.com/ProtonMail/go-ecvrf/ecvrf"
-
-	"github.com/beepxtra/steroid-core4.0/x/vrf/seed"
 )
 
-// DefaultGenesis returns the default x/vrf genesis state: no registered
-// keys, and the Decision 3 baseline seed-continuity state (empty VRF output,
-// the empty-block tx accumulator). LastAcceptedTimeUnixNano is left at zero;
-// InitGenesis fills it in with the actual genesis time.
+// DefaultGenesis returns the default x/vrf genesis state: no registered keys,
+// empty VRF output, and zero LastAcceptedTimeUnixNano (InitGenesis fills it
+// in with the actual genesis block time).
 func DefaultGenesis() *GenesisState {
 	return &GenesisState{
-		ValidatorVrfKeys:  []*ValidatorVRFKey{},
-		LastVrfOutput:     []byte{},
-		LastTxAccumulator: seed.ComputeTxAccumulator(nil),
+		ValidatorVrfKeys: []*ValidatorVRFKey{},
+		LastVrfOutput:    []byte{},
 	}
 }
 
