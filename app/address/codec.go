@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"math/big"
 
-	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	sdkbech32 "github.com/cosmos/cosmos-sdk/types/bech32"
+	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
 // alphabet is the standard Bitcoin base58 alphabet, identical to the
@@ -110,8 +110,8 @@ func DeriveAddress(compressedPubKey []byte) ([]byte, error) {
 		0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x0a, // OID secp256k1
 		0x03, 0x42, 0x00, 0x04, // BIT STRING (66 bytes payload, no unused bits, uncompressed prefix)
 	}
-	uncompressed := parsed.SerializeUncompressed() // 0x04 || X(32) || Y(32)
-	derBytes := append(prefix, uncompressed[1:]...)  // skip the 0x04 prefix byte
+	uncompressed := parsed.SerializeUncompressed()  // 0x04 || X(32) || Y(32)
+	derBytes := append(prefix, uncompressed[1:]...) // skip the 0x04 prefix byte
 
 	// SHA512 × 9 (binary).
 	h := derBytes

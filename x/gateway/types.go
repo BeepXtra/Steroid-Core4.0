@@ -34,51 +34,51 @@ type blockData struct {
 
 // txData is a normalised transaction shape used in /api/gettransaction and /api/gettransactions.
 type txData struct {
-	ID            string  `json:"id"`
-	Block         string  `json:"block"`
-	Height        int64   `json:"height"`
-	Confirmations int64   `json:"confirmations"`
-	Date          int64   `json:"date"`
-	Src           string  `json:"src"`
-	Dst           string  `json:"dst"`
-	Val           string  `json:"val"`
-	Fee           string  `json:"fee"`
-	Message       string  `json:"message"`
-	PublicKey     string  `json:"public_key"`
-	Signature     string  `json:"signature"`
-	Type          string  `json:"type"`
-	Version       int     `json:"version"`
+	ID            string `json:"id"`
+	Block         string `json:"block"`
+	Height        int64  `json:"height"`
+	Confirmations int64  `json:"confirmations"`
+	Date          int64  `json:"date"`
+	Src           string `json:"src"`
+	Dst           string `json:"dst"`
+	Val           string `json:"val"`
+	Fee           string `json:"fee"`
+	Message       string `json:"message"`
+	PublicKey     string `json:"public_key"`
+	Signature     string `json:"signature"`
+	Type          string `json:"type"`
+	Version       int    `json:"version"`
 }
 
 // validatorData is one entry in the /api/masternodes response.
 type validatorData struct {
-	Address    string `json:"address"`
-	PubKey     string `json:"pub_key"`
-	VotingPower int64 `json:"voting_power"`
-	Moniker    string `json:"moniker"`
-	Status     string `json:"status"`
-	Jailed     bool   `json:"jailed"`
-	Tokens     string `json:"tokens"`
+	Address     string `json:"address"`
+	PubKey      string `json:"pub_key"`
+	VotingPower int64  `json:"voting_power"`
+	Moniker     string `json:"moniker"`
+	Status      string `json:"status"`
+	Jailed      bool   `json:"jailed"`
+	Tokens      string `json:"tokens"`
 }
 
 // nodeInfoData is returned by /api/node-info.
 type nodeInfoData struct {
-	Hostname    string  `json:"hostname"`
-	Version     string  `json:"version"`
-	DBVersion   string  `json:"dbversion"`
-	Accounts    int     `json:"accounts"`
-	Transactions int    `json:"transactions"`
-	Mempool     int     `json:"mempool"`
-	Masternodes int     `json:"masternodes"`
-	Peers       int     `json:"peers"`
-	Height      int64   `json:"height"`
-	PassivePeering bool `json:"passive_peering"`
-	PublicKey   string  `json:"public_key"`
-	LoadAvg     float64 `json:"loadavg"`
-	Coin        string  `json:"coin"`
-	System      string  `json:"system"`
-	WebServer   string  `json:"webserver"`
-	DBEngine    string  `json:"dbengine"`
+	Hostname       string  `json:"hostname"`
+	Version        string  `json:"version"`
+	DBVersion      string  `json:"dbversion"`
+	Accounts       int     `json:"accounts"`
+	Transactions   int     `json:"transactions"`
+	Mempool        int     `json:"mempool"`
+	Masternodes    int     `json:"masternodes"`
+	Peers          int     `json:"peers"`
+	Height         int64   `json:"height"`
+	PassivePeering bool    `json:"passive_peering"`
+	PublicKey      string  `json:"public_key"`
+	LoadAvg        float64 `json:"loadavg"`
+	Coin           string  `json:"coin"`
+	System         string  `json:"system"`
+	WebServer      string  `json:"webserver"`
+	DBEngine       string  `json:"dbengine"`
 }
 
 // walletData is returned by /api/generate_wallet.

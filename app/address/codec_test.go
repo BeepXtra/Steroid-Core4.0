@@ -11,9 +11,9 @@ func TestBase58RoundTrip(t *testing.T) {
 	cases := [][]byte{
 		{0x00},
 		{0x00, 0x00, 0x01},
-		make([]byte, 20),  // 20-byte address (cosmos-style)
-		make([]byte, 32),  // 32-byte address
-		make([]byte, 64),  // 64-byte address (first-stage SHA512^9)
+		make([]byte, 20), // 20-byte address (cosmos-style)
+		make([]byte, 32), // 32-byte address
+		make([]byte, 64), // 64-byte address (first-stage SHA512^9)
 	}
 	for i := 1; i < len(cases[3]); i++ {
 		cases[3][i] = byte(i)
@@ -47,8 +47,8 @@ func TestBase58RoundTrip(t *testing.T) {
 func TestBase58Vectors(t *testing.T) {
 	// "Hello World" in base58 per the bitcoin alphabet (canonical reference vectors).
 	cases := []struct {
-		hex  string
-		b58  string
+		hex string
+		b58 string
 	}{
 		{"48656c6c6f20576f726c64", "JxF12TrwUP45BMd"},
 		{"00010203", "1Ldp"},

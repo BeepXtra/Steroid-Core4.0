@@ -17,9 +17,9 @@ import (
 	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
+	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 	bankquery "github.com/cosmos/cosmos-sdk/x/bank/types"
 	stakingquery "github.com/cosmos/cosmos-sdk/x/staking/types"
-	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 
 	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
 )
@@ -27,9 +27,9 @@ import (
 // NodeClient wraps a CometBFT RPC client and gRPC connection so all
 // gateway handlers share a single set of connections.
 type NodeClient struct {
-	rpc   *rpcclient.HTTP
-	grpc  *grpc.ClientConn
-	cdc   codec.Codec
+	rpc  *rpcclient.HTTP
+	grpc *grpc.ClientConn
+	cdc  codec.Codec
 }
 
 // NewNodeClient dials nodeAddr (e.g. "tcp://localhost:26657") and grpcAddr
