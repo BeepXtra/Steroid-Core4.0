@@ -13,7 +13,6 @@ import (
 
 	cmtcfg "github.com/cometbft/cometbft/config"
 
-	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
 	"github.com/cosmos/cosmos-sdk/client"
 	clientconfig "github.com/cosmos/cosmos-sdk/client/config"
 	"github.com/cosmos/cosmos-sdk/client/debug"
@@ -27,6 +26,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/crisis"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+
+	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
 
 	"github.com/beepxtra/steroid-core4.0/app"
 )

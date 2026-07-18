@@ -1,6 +1,7 @@
 package app
 
 import (
+	txsigning "cosmossdk.io/x/tx/signing"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
@@ -8,7 +9,6 @@ import (
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	"github.com/cosmos/gogoproto/proto"
-	txsigning "cosmossdk.io/x/tx/signing"
 
 	steroidaddress "github.com/beepxtra/steroid-core4.0/app/address"
 	appparams "github.com/beepxtra/steroid-core4.0/app/params"
