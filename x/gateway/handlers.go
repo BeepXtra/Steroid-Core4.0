@@ -650,8 +650,8 @@ func parseTx(tx *coretypes.ResultTx, blkHash string, blkTime, currentHeight int6
 	}
 	for _, evt := range tx.TxResult.Events {
 		for _, attr := range evt.Attributes {
-			key := evt.Type + "." + string(attr.Key)
-			val := string(attr.Value)
+			key := evt.Type + "." + attr.Key
+			val := attr.Value
 			switch key {
 			case "transfer.sender":
 				d.Src = val

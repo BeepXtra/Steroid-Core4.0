@@ -56,7 +56,7 @@ func setupEvaluateTest(t *testing.T, identities ...vrfIdentity) (keeper.Keeper, 
 // computeWinner mirrors what EvaluateProposal does internally, so tests can
 // know in advance which of the registered identities is the true winner for
 // a given height, without depending on EvaluateProposal's own answer.
-func computeWinner(t *testing.T, k keeper.Keeper, ctx sdk.Context, height int64) vrfIdentity {
+func computeWinner(t *testing.T, k keeper.Keeper, ctx sdk.Context, height int64) vrfIdentity { //nolint:unparam
 	t.Helper()
 	candidates, err := k.Candidates(ctx)
 	require.NoError(t, err)

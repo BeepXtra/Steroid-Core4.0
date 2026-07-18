@@ -18,7 +18,7 @@ func newTestRouter() *mux.Router {
 	return r
 }
 
-func do(t *testing.T, r *mux.Router, method, path string) *httptest.ResponseRecorder {
+func do(t *testing.T, r *mux.Router, method, path string) *httptest.ResponseRecorder { //nolint:unparam
 	t.Helper()
 	req := httptest.NewRequest(method, path, nil)
 	rr := httptest.NewRecorder()
