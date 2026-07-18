@@ -25,7 +25,6 @@ linters-settings:
   gocritic:
     disabled-checks:
       - appendAssign
-      - hugeParam
   staticcheck:
     checks:
       - "all"
