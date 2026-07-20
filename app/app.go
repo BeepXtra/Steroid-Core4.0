@@ -429,7 +429,16 @@ func (app *App) InterfaceRegistry() codectypes.InterfaceRegistry { return app.in
 func (app *App) LegacyAmino() *codec.LegacyAmino                 { return app.amino }
 
 func (app *App) DefaultGenesis() map[string]json.RawMessage {
-	return ModuleBasics.DefaultGenesis(app.cdc)
+	genesis := ModuleBasics.DefaultGenesis(app.cdc)
+
+	// Cap the active validator set at 70. Governance can raise this via
+	// MsgUpdateParams on the staking module — no code change required.
+	var stakingGenesis stakingtypes.GenesisState
+	app.cdc.MustUnmarshalJSON(genesis[stakingtypes.ModuleName], &stakingGenesis)
+	stakingGenesis.Params.MaxValidators = 70
+	genesis[stakingtypes.ModuleName] = app.cdc.MustMarshalJSON(&stakingGenesis)
+
+	return genesis
 }
 
 func (app *App) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci.ResponseInitChain, error) {
