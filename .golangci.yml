@@ -28,6 +28,12 @@ linters:
         - "-ST1000"
         - "-ST1020"
         - "-QF1008"
+  exclusions:
+    rules:
+      - linters: [godot, godox]
+        text: "TODO"
+      - linters: [staticcheck]
+        text: "SA1019"
 
 formatters:
   enable:
@@ -37,12 +43,3 @@ formatters:
     goimports:
       local-prefixes:
         - github.com/beepxtra/steroid-core4.0
-
-issues:
-  exclude-rules:
-    - linters: [godot, godox]
-      text: "TODO"
-    - linters: [staticcheck]
-      text: "SA1019"
-  max-same-issues: 0
-  max-issues-per-linter: 0
