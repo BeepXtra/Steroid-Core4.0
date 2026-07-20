@@ -2,12 +2,11 @@
 package cmd
 
 import (
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 
-	"cosmossdk.io/log"
+	"cosmossdk.io/log/v2"
 
 	dbm "github.com/cosmos/cosmos-db"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/server"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-	"github.com/cosmos/cosmos-sdk/x/crisis"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
 
@@ -106,21 +104,16 @@ func initRootCmd(rootCmd *cobra.Command, txConfig client.TxConfig) {
 	_ = flags.FlagHome // ensure flags package init() runs
 }
 
-func addModuleInitFlags(startCmd *cobra.Command) {
-	crisis.AddModuleInitFlags(startCmd)
-}
+func addModuleInitFlags(_ *cobra.Command) {}
 
 func newApp(
 	logger log.Logger,
 	db dbm.DB,
-	traceStore io.Writer,
 	appOpts servertypes.AppOptions,
 ) servertypes.Application {
 	return app.New(
 		logger,
 		db,
-		traceStore,
-		true,
 		appOpts,
 		server.DefaultBaseappOptions(appOpts)...,
 	)
@@ -129,7 +122,6 @@ func newApp(
 func appExport(
 	logger log.Logger,
 	db dbm.DB,
-	traceStore io.Writer,
 	height int64,
 	forZeroHeight bool,
 	jailAllowedAddrs []string,
@@ -139,8 +131,6 @@ func appExport(
 	a := app.New(
 		logger,
 		db,
-		traceStore,
-		height == -1,
 		appOpts,
 		server.DefaultBaseappOptions(appOpts)...,
 	)

@@ -28,7 +28,7 @@ translating them to CometBFT RPC and Cosmos SDK gRPC calls.`,
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Gateway listening on %s (node=%s grpc=%s)\n",
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Gateway listening on %s (node=%s grpc=%s)\n",
 				listenAddr, nodeAddr, grpcAddr)
 
 			if err := gateway.StartGateway(ctx, listenAddr, nodeAddr, grpcAddr); err != nil &&

@@ -1,7 +1,7 @@
 // Package app wires the Steroid chain application onto Cosmos SDK + CometBFT.
 //
 // v1 core module set: auth, bank, staking, gov, distribution, slashing, mint,
-// params, crisis, genutil.
+// params, genutil, consensus.
 //
 // Design decisions scaffolded here but implemented later:
 //   - TODO(D3):  Custom base58 address codec (see app/codec.go).
@@ -12,13 +12,12 @@ package app
 
 import (
 	"encoding/json"
-	"io"
 	"os"
 
 	dbm "github.com/cosmos/cosmos-db"
 
-	"cosmossdk.io/log"
-	storetypes "cosmossdk.io/store/types"
+	"cosmossdk.io/log/v2"
+	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
@@ -48,10 +47,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-
-	"github.com/cosmos/cosmos-sdk/x/crisis"
-	crisiskeeper "github.com/cosmos/cosmos-sdk/x/crisis/keeper"
-	crisistypes "github.com/cosmos/cosmos-sdk/x/crisis/types"
 
 	distr "github.com/cosmos/cosmos-sdk/x/distribution"
 	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
@@ -121,7 +116,6 @@ var ModuleBasics = module.NewBasicManager(
 		paramsclient.ProposalHandler,
 	}),
 	params.AppModuleBasic{},
-	crisis.AppModuleBasic{},
 	consensus.AppModuleBasic{},
 	genutil.NewAppModuleBasic(genutiltypes.DefaultMessageValidator),
 	vrfmodule.AppModuleBasic{},
@@ -149,7 +143,6 @@ type App struct {
 	SlashingKeeper       slashingkeeper.Keeper
 	MintKeeper           mintkeeper.Keeper
 	ParamsKeeper         paramskeeper.Keeper
-	CrisisKeeper         *crisiskeeper.Keeper
 	ConsensusParamKeeper consensuskeeper.Keeper
 
 	// ── Custom module keepers ─────────────────────────────────────────────────
@@ -178,8 +171,6 @@ func moduleAuthority(moduleName string) string {
 func New(
 	logger log.Logger,
 	db dbm.DB,
-	traceStore io.Writer,
-	loadLatest bool,
 	appOpts servertypes.AppOptions,
 	baseAppOptions ...func(*baseapp.BaseApp),
 ) *App {
@@ -192,7 +183,6 @@ func New(
 		encodingConfig.TxConfig.TxDecoder(),
 		baseAppOptions...,
 	)
-	bApp.SetCommitMultiStoreTracer(traceStore)
 	bApp.SetVersion(version.Version)
 	bApp.SetInterfaceRegistry(encodingConfig.InterfaceRegistry)
 	bApp.SetTxEncoder(encodingConfig.TxConfig.TxEncoder())
@@ -214,7 +204,6 @@ func New(
 		slashingtypes.StoreKey,
 		minttypes.StoreKey,
 		paramstypes.StoreKey,
-		crisistypes.StoreKey,
 		consensusparamtypes.StoreKey,
 		vrftypes.StoreKey,
 	)
@@ -285,17 +274,6 @@ func New(
 		moduleAuthority(govtypes.ModuleName),
 	)
 
-	// ── CrisisKeeper ─────────────────────────────────────────────────────────
-	app.CrisisKeeper = crisiskeeper.NewKeeper(
-		app.cdc,
-		runtime.NewKVStoreService(app.keys[crisistypes.StoreKey]),
-		1, // invCheckPeriod — every block during v1 dev; tune for production
-		app.BankKeeper,
-		authtypes.FeeCollectorName,
-		moduleAuthority(govtypes.ModuleName),
-		steroidaddress.Codec{}, // D3
-	)
-
 	// ── MintKeeper ───────────────────────────────────────────────────────────
 	app.MintKeeper = mintkeeper.NewKeeper(
 		app.cdc,
@@ -313,11 +291,11 @@ func New(
 		runtime.NewKVStoreService(app.keys[govtypes.StoreKey]),
 		app.AccountKeeper,
 		app.BankKeeper,
-		app.StakingKeeper,
 		app.DistrKeeper,
 		bApp.MsgServiceRouter(),
 		govtypes.DefaultConfig(),
 		moduleAuthority(govtypes.ModuleName),
+		govkeeper.NewDefaultCalculateVoteResultsAndVotingPower(app.StakingKeeper),
 	)
 	govRouter := govv1beta1.NewRouter()
 	govRouter.
@@ -361,7 +339,6 @@ func New(
 		staking.NewAppModule(app.cdc, app.StakingKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(stakingtypes.ModuleName)),
 		distr.NewAppModule(app.cdc, app.DistrKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(distrtypes.ModuleName)),
 		slashing.NewAppModule(app.cdc, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(slashingtypes.ModuleName), app.interfaceRegistry),
-		crisis.NewAppModule(app.CrisisKeeper, false, app.GetSubspace(crisistypes.ModuleName)),
 		mint.NewAppModule(app.cdc, app.MintKeeper, app.AccountKeeper, nil, app.GetSubspace(minttypes.ModuleName)),
 		gov.NewAppModule(app.cdc, app.GovKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(govtypes.ModuleName)),
 		params.NewAppModule(app.ParamsKeeper),
@@ -376,7 +353,6 @@ func New(
 		slashingtypes.ModuleName,
 		stakingtypes.ModuleName,
 		govtypes.ModuleName,
-		crisistypes.ModuleName,
 		genutiltypes.ModuleName,
 		authtypes.ModuleName,
 		banktypes.ModuleName,
@@ -384,7 +360,6 @@ func New(
 		consensusparamtypes.ModuleName,
 	)
 	app.ModuleManager.SetOrderEndBlockers(
-		crisistypes.ModuleName,
 		govtypes.ModuleName,
 		stakingtypes.ModuleName,
 		genutiltypes.ModuleName,
@@ -407,7 +382,6 @@ func New(
 		slashingtypes.ModuleName,
 		govtypes.ModuleName,
 		minttypes.ModuleName,
-		crisistypes.ModuleName,
 		paramstypes.ModuleName,
 		consensusparamtypes.ModuleName,
 		vrftypes.ModuleName,
@@ -419,9 +393,6 @@ func New(
 	if err := app.ModuleManager.RegisterServices(app.configurator); err != nil {
 		panic(err)
 	}
-
-	// ── Register module invariants ────────────────────────────────────────────
-	app.ModuleManager.RegisterInvariants(app.CrisisKeeper)
 
 	// ── AnteHandler ──────────────────────────────────────────────────────────
 	anteHandler, err := ante.NewAnteHandler(ante.HandlerOptions{
@@ -444,11 +415,9 @@ func New(
 	app.MountKVStores(app.keys)
 	app.MountTransientStores(app.tkeys)
 
-	if loadLatest {
-		if err := app.LoadLatestVersion(); err != nil {
-			logger.Error("error loading latest version", "error", err)
-			os.Exit(1)
-		}
+	if err := app.LoadLatestVersion(); err != nil {
+		logger.Error("error loading latest version", "error", err)
+		os.Exit(1)
 	}
 	return app
 }
@@ -522,7 +491,7 @@ func (app *App) RegisterTendermintService(clientCtx client.Context) {
 }
 
 func (app *App) RegisterNodeService(clientCtx client.Context, cfg serverconfig.Config) {
-	nodeservice.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg)
+	nodeservice.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg, app.LastBlockHeight)
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -555,7 +524,6 @@ func initParamsKeeper(
 	pk.Subspace(minttypes.ModuleName)
 	pk.Subspace(distrtypes.ModuleName)
 	pk.Subspace(slashingtypes.ModuleName)
-	pk.Subspace(crisistypes.ModuleName)
 	pk.Subspace(govtypes.ModuleName).WithKeyTable(
 		govv1.ParamKeyTable(), //nolint:staticcheck
 	)

@@ -37,7 +37,7 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 	if err != nil {
 		panic(err)
 	}
-	defer iter.Close()
+	defer func() { _ = iter.Close() }()
 
 	for ; iter.Valid(); iter.Next() {
 		kv, err := iter.KeyValue()
