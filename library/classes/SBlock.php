@@ -647,6 +647,13 @@ class SBlock {
           return "5555555555"; //hard fork 10900 resistance, force new difficulty
           } */
 
+        // ODD difficulty reset: the inverted parity tracking bug caused ODD difficulty
+        // to compound to ~10^14 over millions of blocks. Override for a 40-block window
+        // so stored ODD difficulties normalize before the corrected algorithm takes over.
+        if ($height >= 2147884 && $height < 2147964 && ($height % 2 == 0)) {
+            return 1000000000;
+        }
+
         // last 20 blocks used to check the block times
         $limit = 20;
         if ($height < 20) {
@@ -680,13 +687,13 @@ class SBlock {
             }
         } else {
             // height >= 20: use last 20 same-parity blocks to calculate average block time
-            $type = $height % 2;
+            $type = ($height + 1) % 2; // parity of the block being mined (next block)
             $current = $db->row("SELECT difficulty from blocks WHERE height<=:h ORDER by height DESC LIMIT 1,1", [":h" => $height]);
             $blks = 0;
             $total_time = 0;
             $blk = $db->run("SELECT `date`, height FROM blocks WHERE height<=:h  ORDER by height DESC LIMIT 20", [":h" => $height]);
             for ($i = 0; $i < 19; $i++) {
-                $ctype = $blk[$i + 1]['height'] % 2;
+                $ctype = $blk[$i]['height'] % 2; // parity of the block whose mining time this interval measures
                 $time = $blk[$i]['date'] - $blk[$i + 1]['date'];
                 if ($type != $ctype) {
                     continue;
